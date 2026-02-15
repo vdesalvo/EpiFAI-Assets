@@ -1,38 +1,28 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
+import { db } from "./db";
+import {
+  names,
+  type Name,
+  type InsertName,
+} from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // Not used much in this app since it's an Excel Add-in,
+  // but we keep it for potential future features like saving names to DB.
+  getNames(): Promise<Name[]>;
+  createName(name: InsertName): Promise<Name>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  async getNames(): Promise<Name[]> {
+    return await db.select().from(names);
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async createName(insertName: InsertName): Promise<Name> {
+    const [name] = await db.insert(names).values(insertName).returning();
+    return name;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
