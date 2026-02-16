@@ -13,7 +13,7 @@ const MANIFEST_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"
            xsi:type="TaskPaneApp">
 
   <Id>9f95c57c-a36f-4f05-b486-e01f61f3cbaa</Id>
-  <Version>1.2.0.0</Version>
+  <Version>1.3.0.0</Version>
   <ProviderName>Epifai</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Epifai Name Manager"/>
@@ -31,7 +31,7 @@ const MANIFEST_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"
   </Hosts>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="{{BASE_URL}}/taskpane.html"/>
+    <SourceLocation DefaultValue="{{BASE_URL}}"/>
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
@@ -86,7 +86,7 @@ const MANIFEST_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"
       <bt:Urls>
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="{{BASE_URL}}"/>
         <bt:Url id="Commands.Url" DefaultValue="{{BASE_URL}}/commands.html"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="{{BASE_URL}}/taskpane.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="{{BASE_URL}}"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="Epifai Name Manager"/>
@@ -138,7 +138,7 @@ export async function registerRoutes(
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
            xsi:type="TaskPaneApp">
   <Id>9f95c57c-a36f-4f05-b486-e01f61f3cbaa</Id>
-  <Version>1.2.0.0</Version>
+  <Version>1.3.0.0</Version>
   <ProviderName>Epifai</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Epifai Name Manager"/>
@@ -153,7 +153,7 @@ export async function registerRoutes(
     <Host Name="Workbook"/>
   </Hosts>
   <DefaultSettings>
-    <SourceLocation DefaultValue="${baseUrl}/taskpane.html"/>
+    <SourceLocation DefaultValue="${baseUrl}"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
 </OfficeApp>`;
