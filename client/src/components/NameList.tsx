@@ -15,7 +15,6 @@ import {
   LayoutGrid,
   Maximize
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface NameListProps {
@@ -108,94 +107,86 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate }: NameList
             </div>
           )}
           
-          <AnimatePresence>
-            {filteredNames.map((n, i) => {
-              const isSelected = selectedId === n.name;
-              const dynamic = isDynamic(n.formula);
-              
-              return (
-                <motion.div
-                  key={n.name + i}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ delay: i * 0.03, duration: 0.2 }}
-                  onClick={() => setSelectedId(isSelected ? null : n.name)}
-                  className={cn(
-                    "border-b border-border/40 transition-colors cursor-pointer group",
-                    isSelected ? "bg-accent/30 border-l-4 border-l-primary" : "hover:bg-muted/30 border-l-4 border-l-transparent"
-                  )}
-                >
-                  <div className="p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="font-semibold text-sm truncate pr-2 text-foreground/90">
-                        {n.name}
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Badge variant={dynamic ? "info" : "secondary"} className="text-[10px] h-5 px-1.5">
-                          {dynamic ? <Maximize className="w-2.5 h-2.5 mr-1"/> : <LayoutGrid className="w-2.5 h-2.5 mr-1"/>}
-                          {dynamic ? "Dynamic" : "Fixed"}
-                        </Badge>
-                        {getStatusBadge(n.status)}
-                      </div>
+          {filteredNames.map((n) => {
+            const isSelected = selectedId === n.name;
+            const dynamic = isDynamic(n.formula);
+            
+            return (
+              <div
+                key={n.name + n.scope}
+                onClick={() => setSelectedId(isSelected ? null : n.name)}
+                className={cn(
+                  "border-b border-border/40 transition-colors cursor-pointer group",
+                  isSelected ? "bg-accent/30 border-l-4 border-l-primary" : "hover-elevate border-l-4 border-l-transparent"
+                )}
+              >
+                <div className="p-3">
+                  <div className="flex items-center justify-between gap-1 mb-1 flex-wrap">
+                    <div className="font-semibold text-sm truncate pr-2 text-foreground/90">
+                      {n.name}
                     </div>
-                    
-                    <div className="text-xs font-mono text-muted-foreground truncate mb-1 bg-muted/30 p-1 rounded">
-                      {n.formula.replace(/^=/, "")}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge variant={dynamic ? "info" : "secondary"} className="text-[10px] h-5 px-1.5">
+                        {dynamic ? <Maximize className="w-2.5 h-2.5 mr-1"/> : <LayoutGrid className="w-2.5 h-2.5 mr-1"/>}
+                        {dynamic ? "Dynamic" : "Fixed"}
+                      </Badge>
+                      {getStatusBadge(n.status)}
                     </div>
-
-                    {n.scope !== "Workbook" && (
-                      <span className="inline-block text-[10px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 mb-1">
-                        Scope: {n.scope}
-                      </span>
-                    )}
-
-                    {/* Details Panel (Expanded) */}
-                    {isSelected && (
-                      <motion.div 
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        className="pt-3 mt-2 border-t border-border/50"
-                      >
-                        {n.comment && (
-                          <div className="text-xs text-muted-foreground mb-3 italic">
-                            "{n.comment}"
-                          </div>
-                        )}
-                        
-                        <div className="flex items-center gap-2 mt-2">
-                          <Button 
-                            size="sm" 
-                            variant="default"
-                            className="h-7 text-xs flex-1 bg-primary hover:bg-primary/90"
-                            onClick={(e) => { e.stopPropagation(); onGoTo(n); }}
-                          >
-                            <ExternalLink className="w-3 h-3 mr-1.5" /> Go To
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="h-7 text-xs flex-1"
-                            onClick={(e) => { e.stopPropagation(); onEdit(n); }}
-                          >
-                            <Edit className="w-3 h-3 mr-1.5" /> Edit
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
-                            onClick={(e) => { e.stopPropagation(); onDelete(n); }}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </motion.div>
-                    )}
                   </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                  
+                  <div className="text-xs font-mono text-muted-foreground truncate mb-1 bg-muted/30 p-1 rounded">
+                    {n.formula.replace(/^=/, "")}
+                  </div>
+
+                  {n.scope !== "Workbook" && (
+                    <span className="inline-block text-[10px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded border border-purple-100 dark:border-purple-800 mb-1">
+                      Scope: {n.scope}
+                    </span>
+                  )}
+
+                  {isSelected && (
+                    <div className="pt-3 mt-2 border-t border-border/50">
+                      {n.comment && (
+                        <div className="text-xs text-muted-foreground mb-3 italic">
+                          "{n.comment}"
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center gap-2 mt-2">
+                        <Button 
+                          size="sm" 
+                          variant="default"
+                          className="text-xs flex-1"
+                          onClick={(e) => { e.stopPropagation(); onGoTo(n); }}
+                          data-testid={`button-goto-${n.name}`}
+                        >
+                          <ExternalLink className="w-3 h-3 mr-1.5" /> Go To
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="text-xs flex-1"
+                          onClick={(e) => { e.stopPropagation(); onEdit(n); }}
+                          data-testid={`button-edit-${n.name}`}
+                        >
+                          <Edit className="w-3 h-3 mr-1.5" /> Edit
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          className="text-xs text-destructive"
+                          onClick={(e) => { e.stopPropagation(); onDelete(n); }}
+                          data-testid={`button-delete-${n.name}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </ScrollArea>
 
@@ -205,9 +196,10 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate }: NameList
           {filteredNames.length} names
         </span>
         <Button 
-          variant="link" 
-          className="text-primary h-auto p-0 text-xs font-semibold hover:no-underline hover:opacity-80"
+          variant="ghost" 
+          className="text-primary h-auto p-0 text-xs font-semibold"
           onClick={onCreate}
+          data-testid="button-new-named-range"
         >
           + New Named Range
         </Button>
