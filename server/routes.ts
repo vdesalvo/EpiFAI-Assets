@@ -128,6 +128,39 @@ export async function registerRoutes(
     res.send(manifest);
   });
 
+  app.get("/manifest-simple.xml", (req, res) => {
+    const host = req.headers.host;
+    const protocol = req.headers["x-forwarded-proto"] || "https";
+    const baseUrl = `${protocol}://${host}`;
+
+    const simpleManifest = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:type="TaskPaneApp">
+  <Id>9f95c57c-a36f-4f05-b486-e01f61f3cbaa</Id>
+  <Version>1.2.0.0</Version>
+  <ProviderName>Epifai</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Epifai Name Manager"/>
+  <Description DefaultValue="A better way to manage Named Ranges and Charts in Excel"/>
+  <IconUrl DefaultValue="${baseUrl}/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="${baseUrl}/assets/icon-80.png"/>
+  <SupportUrl DefaultValue="${baseUrl}"/>
+  <AppDomains>
+    <AppDomain>${baseUrl}</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Workbook"/>
+  </Hosts>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="${baseUrl}/taskpane.html"/>
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+</OfficeApp>`;
+    res.header("Content-Type", "application/xml");
+    res.send(simpleManifest);
+  });
+
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
