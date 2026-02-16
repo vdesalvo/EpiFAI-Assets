@@ -20,7 +20,7 @@ const MANIFEST_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"
   <Description DefaultValue="A better way to manage Named Ranges and Charts in Excel"/>
   <IconUrl DefaultValue="{{BASE_URL}}/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="{{BASE_URL}}/assets/icon-80.png"/>
-  <SupportUrl DefaultValue="https://epifai.com"/>
+  <SupportUrl DefaultValue="{{BASE_URL}}"/>
 
   <AppDomains>
     <AppDomain>{{BASE_URL}}</AppDomain>
@@ -31,7 +31,7 @@ const MANIFEST_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"
   </Hosts>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="{{BASE_URL}}"/>
+    <SourceLocation DefaultValue="{{BASE_URL}}/taskpane.html"/>
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
@@ -84,8 +84,8 @@ const MANIFEST_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"
         <bt:Image id="Icon80" DefaultValue="{{BASE_URL}}/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="TaskpaneUrl" DefaultValue="{{BASE_URL}}/taskpane-test"/>
-        <bt:Url id="LearnMoreUrl" DefaultValue="https://epifai.com"/>
+        <bt:Url id="TaskpaneUrl" DefaultValue="{{BASE_URL}}/taskpane.html"/>
+        <bt:Url id="LearnMoreUrl" DefaultValue="{{BASE_URL}}"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GroupLabel" DefaultValue="Epifai"/>
@@ -109,7 +109,7 @@ export async function registerRoutes(
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     res.removeHeader("X-Frame-Options");
-    res.header("Content-Security-Policy", "frame-ancestors 'self' https://*.office.com https://*.office365.com https://*.officeppe.com https://*.microsoft.com https://*.sharepoint.com");
+    res.removeHeader("Content-Security-Policy");
     if (req.method === "OPTIONS") {
       return res.sendStatus(200);
     }
