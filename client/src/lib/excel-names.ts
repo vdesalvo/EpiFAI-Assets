@@ -144,22 +144,21 @@ export async function deleteName(name: string): Promise<void> {
 
 export async function goToName(params: { name: string; scope: string }): Promise<void> {
   return Excel.run(async (ctx) => {
-    let namedItem;
+    let range;
     if (params.scope && params.scope !== "Workbook") {
-      try {
-        namedItem = ctx.workbook.worksheets.getItem(params.scope).names.getItem(params.name);
-      } catch {
-        namedItem = ctx.workbook.names.getItem(params.name);
-      }
+      const sheetItem = ctx.workbook.worksheets.getItem(params.scope);
+      const namedItem = sheetItem.names.getItem(params.name);
+      range = namedItem.getRange();
     } else {
-      namedItem = ctx.workbook.names.getItem(params.name);
+      const namedItem = ctx.workbook.names.getItem(params.name);
+      range = namedItem.getRange();
     }
-    const range = namedItem.getRange();
-    range.load("address");
+    range.load("address,worksheet/name");
     await ctx.sync();
-    const sheetName = range.address.split("!")[0];
-    if (sheetName) {
-      ctx.workbook.worksheets.getItem(sheetName).activate();
+    const ws = range.worksheet;
+    if (ws && ws.name) {
+      ctx.workbook.worksheets.getItem(ws.name).activate();
+      await ctx.sync();
     }
     range.select();
     await ctx.sync();

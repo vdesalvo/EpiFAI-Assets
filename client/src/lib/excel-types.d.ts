@@ -53,6 +53,7 @@ declare namespace Excel {
   interface Range {
     address: string;
     values: any[][];
+    worksheet: Worksheet;
     load(propertyNames?: string | string[]): void;
     select(): void;
   }
