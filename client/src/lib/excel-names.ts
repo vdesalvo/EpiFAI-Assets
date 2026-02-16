@@ -142,9 +142,26 @@ export async function deleteName(name: string): Promise<void> {
   });
 }
 
-export async function goToName(name: string): Promise<void> {
+export async function goToName(params: { name: string; scope: string }): Promise<void> {
   return Excel.run(async (ctx) => {
-    ctx.workbook.names.getItem(name).getRange().select();
+    let namedItem;
+    if (params.scope && params.scope !== "Workbook") {
+      try {
+        namedItem = ctx.workbook.worksheets.getItem(params.scope).names.getItem(params.name);
+      } catch {
+        namedItem = ctx.workbook.names.getItem(params.name);
+      }
+    } else {
+      namedItem = ctx.workbook.names.getItem(params.name);
+    }
+    const range = namedItem.getRange();
+    range.load("address");
+    await ctx.sync();
+    const sheetName = range.address.split("!")[0];
+    if (sheetName) {
+      ctx.workbook.worksheets.getItem(sheetName).activate();
+    }
+    range.select();
     await ctx.sync();
   });
 }

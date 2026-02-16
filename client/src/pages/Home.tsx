@@ -122,7 +122,7 @@ export default function Home() {
   };
 
   const handleGoToName = (name: ExcelName) => {
-    goToName.mutate(name.name);
+    goToName.mutate({ name: name.name, scope: name.scope });
   };
 
   const handleRenameChart = async (id: string, newName: string) => {
