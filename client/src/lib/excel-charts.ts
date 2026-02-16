@@ -64,7 +64,7 @@ export async function goToChart(sheetName: string, chartName: string): Promise<v
     const sheet = ctx.workbook.worksheets.getItem(sheetName);
     sheet.activate();
     const chart = sheet.charts.getItem(chartName);
-    // Indirect selection via activation
+    chart.activate();
     await ctx.sync();
   });
 }
