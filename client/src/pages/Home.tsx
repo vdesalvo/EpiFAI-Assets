@@ -10,6 +10,21 @@ import { RefreshCw, Table2, BarChart3, Info, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
+function BuildTimestamp() {
+  const [info, setInfo] = useState<{ buildTime: string; version: string } | null>(null);
+  useEffect(() => {
+    fetch("/api/build-info").then(r => r.json()).then(setInfo).catch(() => {});
+  }, []);
+  if (!info) return null;
+  const d = new Date(info.buildTime);
+  const formatted = d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+  return (
+    <div className="px-4 pb-1 text-[9px] text-muted-foreground/60 text-right shrink-0" data-testid="text-build-time">
+      v{info.version} &middot; Published: {formatted}
+    </div>
+  );
+}
+
 // Simple Chart List Item Component (Internal)
 function ChartListItem({ chart, onRename, onGoTo }: { chart: any, onRename: (id: string, name: string) => void, onGoTo: (c: any) => void }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -155,10 +170,11 @@ export default function Home() {
             <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">Manager</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={handleRefresh} title="Sync from Excel">
+        <Button variant="outline" size="icon" onClick={handleRefresh} title="Sync from Excel">
           <RefreshCw className={`w-3.5 h-3.5 ${loadingNames ? 'animate-spin' : ''}`} />
         </Button>
       </div>
+      <BuildTimestamp />
 
       {namesError ? (
         <div className="flex flex-col items-center justify-center flex-1 p-6 gap-4">

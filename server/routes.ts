@@ -5,6 +5,8 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 
+const SERVER_START_TIME = new Date().toISOString();
+
 const MANIFEST_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -168,6 +170,10 @@ export async function registerRoutes(
   app.get("/api/names", async (req, res) => {
     const names = await storage.getNames();
     res.json(names);
+  });
+
+  app.get("/api/build-info", (req, res) => {
+    res.json({ buildTime: SERVER_START_TIME, version: "1.3" });
   });
 
   app.get("/taskpane-test", (req, res) => {
