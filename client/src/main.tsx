@@ -4,10 +4,18 @@ import "./index.css";
 
 const root = createRoot(document.getElementById("root")!);
 
-if (window.Office) {
-  Office.onReady(() => {
-    root.render(<App />);
-  });
-} else {
+const renderApp = () => {
   root.render(<App />);
+};
+
+if (typeof Office !== "undefined") {
+  Office.onReady(renderApp);
+} else {
+  window.addEventListener("load", () => {
+    if (typeof Office !== "undefined") {
+      Office.onReady(renderApp);
+    } else {
+      renderApp();
+    }
+  });
 }

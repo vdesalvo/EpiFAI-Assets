@@ -75,13 +75,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("names");
 
   useEffect(() => {
-    // Office.onReady is actually handled globally, but we can verify environment here
-    if (window.Office) {
-      window.Office.onReady().then(() => setInit(true));
-    } else {
-      // Dev mode fallback
-      setInit(true);
-    }
+    setInit(true);
   }, []);
 
   const handleRefresh = () => {
