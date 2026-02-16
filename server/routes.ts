@@ -12,8 +12,8 @@ const MANIFEST_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"
            xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
            xsi:type="TaskPaneApp">
 
-  <Id>a1b2c3d4-e5f6-7890-abcd-123456789abc</Id>
-  <Version>1.1.0.0</Version>
+  <Id>9f95c57c-a36f-4f05-b486-e01f61f3cbaa</Id>
+  <Version>1.2.0.0</Version>
   <ProviderName>Epifai</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Epifai Name Manager"/>
