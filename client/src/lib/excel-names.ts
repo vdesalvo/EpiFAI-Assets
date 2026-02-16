@@ -93,7 +93,7 @@ export async function getAllNames(): Promise<ExcelName[]> {
     console.error("Error fetching names:", error);
     // Return empty array or throw depending on desired behavior
     // For mock purposes in browser without Excel, we might want to return dummy data
-    if (process.env.NODE_ENV === 'development' && !window.hasOwnProperty('Excel')) {
+    if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
        console.warn("Mocking Excel Data for Development");
        return [
          { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid" },

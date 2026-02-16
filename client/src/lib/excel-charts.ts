@@ -30,7 +30,7 @@ export async function getAllCharts(): Promise<ExcelChart[]> {
       return charts;
     });
   } catch (error) {
-    if (process.env.NODE_ENV === 'development' && !window.hasOwnProperty('Excel')) {
+    if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
       return [
         { id: "c1", name: "Chart 1", title: "Sales 2024", sheet: "Sheet1" },
         { id: "c2", name: "Chart 2", title: "Growth", sheet: "Sheet1" }
