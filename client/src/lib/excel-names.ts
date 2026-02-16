@@ -152,21 +152,25 @@ export async function goToName(params: { name: string; scope: string }): Promise
         namedItem = ctx.workbook.names.getItem(params.name);
       }
       namedItem.load("formula");
-      const range = namedItem.getRange();
-      range.load("address");
       await ctx.sync();
 
-      const addr = range.address;
-      const sheetName = addr.includes("!") ? addr.split("!")[0].replace(/'/g, "") : "";
-      const cellRef = addr.includes("!") ? addr.split("!")[1] : addr;
+      const formula = namedItem.formula.replace(/^=/, "");
+      let sheetName = "";
+      let cellRef = formula;
+      if (formula.includes("!")) {
+        sheetName = formula.split("!")[0].replace(/'/g, "");
+        cellRef = formula.split("!")[1];
+      }
 
       if (sheetName) {
-        const targetSheet = ctx.workbook.worksheets.getItem(sheetName);
-        targetSheet.activate();
-        const targetRange = targetSheet.getRange(cellRef);
-        targetRange.select();
+        const sheet = ctx.workbook.worksheets.getItem(sheetName);
+        sheet.activate();
+        await ctx.sync();
+        const range = sheet.getRange(cellRef);
+        range.select();
         await ctx.sync();
       } else {
+        const range = namedItem.getRange();
         range.select();
         await ctx.sync();
       }
