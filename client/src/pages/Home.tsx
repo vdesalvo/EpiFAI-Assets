@@ -6,7 +6,7 @@ import { NameEditor } from "@/components/NameEditor";
 import { FullPageLoader, LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { ExcelName } from "@/lib/excel-names";
-import { RefreshCw, Table2, BarChart3, Info } from "lucide-react";
+import { RefreshCw, Table2, BarChart3, Info, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -163,9 +163,29 @@ export default function Home() {
       </div>
 
       {namesError ? (
-        <div className="p-4 m-4 border border-destructive/20 bg-destructive/10 rounded-lg text-sm text-destructive flex items-start gap-2">
-          <Info className="w-4 h-4 shrink-0 mt-0.5" />
-          <p>{(namesError as Error).message}. Make sure you are running this inside Excel.</p>
+        <div className="flex flex-col items-center justify-center flex-1 p-6 gap-4">
+          <div className="p-4 border border-destructive/20 bg-destructive/10 rounded-lg text-sm text-destructive flex items-start gap-2 w-full">
+            <Info className="w-4 h-4 shrink-0 mt-0.5" />
+            <p>{(namesError as Error).message}. Make sure you are running this inside Excel.</p>
+          </div>
+          <div className="text-center text-sm text-muted-foreground">
+            <p className="mb-3">To get started, download the manifest and upload it into Excel.</p>
+            <Button
+              data-testid="button-download-manifest"
+              variant="default"
+              onClick={() => {
+                const link = document.createElement("a");
+                link.href = "/manifest.xml";
+                link.download = "manifest.xml";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download Manifest
+            </Button>
+          </div>
         </div>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
