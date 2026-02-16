@@ -28,6 +28,7 @@ declare namespace Excel {
     names: NamedItemCollection;
     charts: ChartCollection;
     activate(): void;
+    getRange(address?: string): Range;
     onSelectionChanged: EventHandlers;
   }
 

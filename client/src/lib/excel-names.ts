@@ -145,23 +145,28 @@ export async function deleteName(name: string): Promise<void> {
 export async function goToName(params: { name: string; scope: string }): Promise<void> {
   return Excel.run(async (ctx) => {
     try {
+      let namedItem;
       if (params.scope && params.scope !== "Workbook") {
-        const sheet = ctx.workbook.worksheets.getItem(params.scope);
-        sheet.activate();
-        const namedItem = sheet.names.getItem(params.name);
-        namedItem.getRange().select();
+        namedItem = ctx.workbook.worksheets.getItem(params.scope).names.getItem(params.name);
+      } else {
+        namedItem = ctx.workbook.names.getItem(params.name);
+      }
+      namedItem.load("formula");
+      const range = namedItem.getRange();
+      range.load("address");
+      await ctx.sync();
+
+      const addr = range.address;
+      const sheetName = addr.includes("!") ? addr.split("!")[0].replace(/'/g, "") : "";
+      const cellRef = addr.includes("!") ? addr.split("!")[1] : addr;
+
+      if (sheetName) {
+        const targetSheet = ctx.workbook.worksheets.getItem(sheetName);
+        targetSheet.activate();
+        const targetRange = targetSheet.getRange(cellRef);
+        targetRange.select();
         await ctx.sync();
       } else {
-        const namedItem = ctx.workbook.names.getItem(params.name);
-        const range = namedItem.getRange();
-        range.load("address");
-        await ctx.sync();
-        const addr = range.address;
-        const sheetName = addr.includes("!") ? addr.split("!")[0].replace(/'/g, "") : "";
-        if (sheetName) {
-          ctx.workbook.worksheets.getItem(sheetName).activate();
-          await ctx.sync();
-        }
         range.select();
         await ctx.sync();
       }
