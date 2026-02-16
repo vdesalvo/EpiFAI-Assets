@@ -144,24 +144,31 @@ export async function deleteName(name: string): Promise<void> {
 
 export async function goToName(params: { name: string; scope: string }): Promise<void> {
   return Excel.run(async (ctx) => {
-    let range;
-    if (params.scope && params.scope !== "Workbook") {
-      const sheetItem = ctx.workbook.worksheets.getItem(params.scope);
-      const namedItem = sheetItem.names.getItem(params.name);
-      range = namedItem.getRange();
-    } else {
-      const namedItem = ctx.workbook.names.getItem(params.name);
-      range = namedItem.getRange();
+    try {
+      if (params.scope && params.scope !== "Workbook") {
+        const sheet = ctx.workbook.worksheets.getItem(params.scope);
+        sheet.activate();
+        const namedItem = sheet.names.getItem(params.name);
+        namedItem.getRange().select();
+        await ctx.sync();
+      } else {
+        const namedItem = ctx.workbook.names.getItem(params.name);
+        const range = namedItem.getRange();
+        range.load("address");
+        await ctx.sync();
+        const addr = range.address;
+        const sheetName = addr.includes("!") ? addr.split("!")[0].replace(/'/g, "") : "";
+        if (sheetName) {
+          ctx.workbook.worksheets.getItem(sheetName).activate();
+          await ctx.sync();
+        }
+        range.select();
+        await ctx.sync();
+      }
+    } catch (err) {
+      console.error("goToName error:", err);
+      throw err;
     }
-    range.load("address,worksheet/name");
-    await ctx.sync();
-    const ws = range.worksheet;
-    if (ws && ws.name) {
-      ctx.workbook.worksheets.getItem(ws.name).activate();
-      await ctx.sync();
-    }
-    range.select();
-    await ctx.sync();
   });
 }
 

@@ -122,7 +122,11 @@ export default function Home() {
   };
 
   const handleGoToName = (name: ExcelName) => {
-    goToName.mutate({ name: name.name, scope: name.scope });
+    goToName.mutate({ name: name.name, scope: name.scope }, {
+      onError: (err: any) => {
+        toast({ variant: "destructive", title: "Go To failed", description: err?.message || "Could not navigate to this name" });
+      }
+    });
   };
 
   const handleRenameChart = async (id: string, newName: string) => {
