@@ -77,5 +77,9 @@ declare namespace Excel {
 }
 
 declare var Office: {
-  onReady(callback: (info: { host: string; platform: string }) => void): Promise<void>;
+  onReady(callback?: (info: { host: string; platform: string }) => void): Promise<{ host: string; platform: string }>;
 };
+
+interface Window {
+  Office?: typeof Office;
+}

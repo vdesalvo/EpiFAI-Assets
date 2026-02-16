@@ -2,4 +2,12 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
-createRoot(document.getElementById("root")!).render(<App />);
+const root = createRoot(document.getElementById("root")!);
+
+if (window.Office) {
+  Office.onReady(() => {
+    root.render(<App />);
+  });
+} else {
+  root.render(<App />);
+}
