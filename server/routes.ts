@@ -8,10 +8,12 @@ import { fileURLToPath } from "url";
 const MANIFEST_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
            xsi:type="TaskPaneApp">
 
   <Id>a1b2c3d4-e5f6-7890-abcd-123456789abc</Id>
-  <Version>1.0.0.0</Version>
+  <Version>1.1.0.0</Version>
   <ProviderName>Epifai</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Epifai Name Manager"/>
@@ -33,6 +35,70 @@ const MANIFEST_TEMPLATE = `<?xml version="1.0" encoding="UTF-8" standalone="yes"
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Workbook">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title"/>
+            <Description resid="GetStarted.Description"/>
+            <LearnMoreUrl resid="GetStarted.LearnMoreUrl"/>
+          </GetStarted>
+          <FunctionFile resid="Commands.Url"/>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="CommandsGroup">
+                <Label resid="CommandsGroup.Label"/>
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16x16"/>
+                  <bt:Image size="32" resid="Icon.32x32"/>
+                  <bt:Image size="80" resid="Icon.80x80"/>
+                </Icon>
+                <Control xsi:type="Button" id="TaskpaneButton">
+                  <Label resid="TaskpaneButton.Label"/>
+                  <Supertip>
+                    <Title resid="TaskpaneButton.Label"/>
+                    <Description resid="TaskpaneButton.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16"/>
+                    <bt:Image size="32" resid="Icon.32x32"/>
+                    <bt:Image size="80" resid="Icon.80x80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>ButtonId1</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Url"/>
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16x16" DefaultValue="{{BASE_URL}}/assets/icon-16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="{{BASE_URL}}/assets/icon-32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="{{BASE_URL}}/assets/icon-80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="{{BASE_URL}}"/>
+        <bt:Url id="Commands.Url" DefaultValue="{{BASE_URL}}/commands.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="{{BASE_URL}}/taskpane.html"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="GetStarted.Title" DefaultValue="Epifai Name Manager"/>
+        <bt:String id="CommandsGroup.Label" DefaultValue="Epifai"/>
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Name Manager"/>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="GetStarted.Description" DefaultValue="Click Name Manager on the Home tab to manage your named ranges and charts."/>
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open Epifai Name Manager to manage named ranges and charts"/>
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
 
 </OfficeApp>`;
 
