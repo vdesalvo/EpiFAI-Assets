@@ -59,10 +59,31 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
     }
   };
 
+  const [nameError, setNameError] = useState("");
+
+  const validateName = (n: string): string => {
+    if (!n.trim()) return "Name is required";
+    if (/\s/.test(n)) return "Name cannot contain spaces. Use underscores instead.";
+    if (/^\d/.test(n)) return "Name cannot start with a number";
+    if (!/^[A-Za-z_\\][A-Za-z0-9_.\\]*$/.test(n)) return "Name contains invalid characters";
+    if (/^[A-Za-z]{1,3}\d+$/.test(n)) return "Name looks like a cell reference (e.g. A1)";
+    return "";
+  };
+
   const handleSave = () => {
+    const err = validateName(name);
+    if (err) {
+      setNameError(err);
+      return;
+    }
+    if (!refersTo.trim()) {
+      setNameError("Reference is required");
+      return;
+    }
+    setNameError("");
     onSave({
-      name: initialData?.name || name, // Original name
-      newName: name !== initialData?.name ? name : undefined, // New name if changed
+      name: initialData?.name || name,
+      newName: name !== initialData?.name ? name : undefined,
       refersTo: `=${refersTo.replace(/^=/, "")}`,
       comment
     });
@@ -83,10 +104,14 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
           <Input 
             id="name" 
             value={name} 
-            onChange={e => setName(e.target.value)} 
+            onChange={e => { setName(e.target.value); setNameError(""); }} 
             placeholder="e.g. Revenue_2024"
-            className="font-medium"
+            className={cn("font-medium", nameError && "border-destructive")}
+            data-testid="input-name"
           />
+          {nameError && (
+            <p className="text-[11px] text-destructive font-medium">{nameError}</p>
+          )}
         </div>
 
         <div className="space-y-2">
