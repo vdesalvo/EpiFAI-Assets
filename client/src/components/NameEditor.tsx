@@ -3,7 +3,7 @@ import { ExcelName, onSelectionChange } from "@/lib/excel-names";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+
 import { Textarea } from "@/components/ui/textarea";
 import { Grid, ArrowDownUp, MousePointerClick } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,16 +18,10 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
   const [name, setName] = useState(initialData?.name || "");
   const [refersTo, setRefersTo] = useState(initialData?.formula.replace(/^=/, "") || "");
   const [comment, setComment] = useState(initialData?.comment || "");
-  const [type, setType] = useState<"fixed" | "dynamic">("fixed");
+
   const [picking, setPicking] = useState(false);
   const unregRef = useRef<(() => Promise<void>) | null>(null);
 
-  useEffect(() => {
-    // Basic detection of dynamic range
-    const isDyn = refersTo.toUpperCase().includes("OFFSET(") || 
-                 refersTo.toUpperCase().includes("INDIRECT(");
-    setType(isDyn ? "dynamic" : "fixed");
-  }, []); // Only run once on mount for initial detection
 
   // Cleanup selection listener
   useEffect(() => {
@@ -143,41 +137,41 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
 
         <div className="space-y-3">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Range Type</Label>
-          <RadioGroup 
-            value={type} 
-            onValueChange={(v) => setType(v as "fixed" | "dynamic")} 
-            className="grid grid-cols-2 gap-3"
-          >
-            <div className={cn(
-              "flex items-center space-x-2 border rounded-md p-3 transition-colors cursor-pointer",
-              type === "fixed" ? "bg-accent/50 border-primary/30" : "bg-card hover:bg-muted/50"
-            )}>
-              <RadioGroupItem value="fixed" id="fixed" />
-              <Label htmlFor="fixed" className="cursor-pointer">
-                <div className="flex items-center font-semibold text-sm mb-1">
-                  <Grid className="w-3.5 h-3.5 mr-1.5" /> Fixed
+          {(() => {
+            const u = refersTo.toUpperCase();
+            const detected = u.includes("OFFSET(") || u.includes("INDIRECT(") || u.includes("INDEX(") ? "dynamic" : "fixed";
+            return (
+              <div className="grid grid-cols-2 gap-3">
+                <div className={cn(
+                  "flex items-center space-x-2 border rounded-md p-3",
+                  detected === "fixed" ? "bg-accent/50 border-primary/30" : "bg-card"
+                )}>
+                  <Grid className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-semibold text-sm">Fixed</div>
+                    <div className="text-[10px] text-muted-foreground leading-tight">
+                      Static reference to specific cells.
+                    </div>
+                  </div>
                 </div>
-                <div className="text-[10px] text-muted-foreground leading-tight">
-                  Static reference to specific cells.
+                <div className={cn(
+                  "flex items-center space-x-2 border rounded-md p-3",
+                  detected === "dynamic" ? "bg-accent/50 border-primary/30" : "bg-card"
+                )}>
+                  <ArrowDownUp className="w-3.5 h-3.5 mr-1.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-semibold text-sm">Dynamic</div>
+                    <div className="text-[10px] text-muted-foreground leading-tight">
+                      Uses OFFSET, INDIRECT, or INDEX.
+                    </div>
+                  </div>
                 </div>
-              </Label>
-            </div>
-
-            <div className={cn(
-              "flex items-center space-x-2 border rounded-md p-3 transition-colors cursor-pointer",
-              type === "dynamic" ? "bg-accent/50 border-primary/30" : "bg-card hover:bg-muted/50"
-            )}>
-              <RadioGroupItem value="dynamic" id="dynamic" />
-              <Label htmlFor="dynamic" className="cursor-pointer">
-                <div className="flex items-center font-semibold text-sm mb-1">
-                  <ArrowDownUp className="w-3.5 h-3.5 mr-1.5" /> Dynamic
-                </div>
-                <div className="text-[10px] text-muted-foreground leading-tight">
-                  Auto-expands with data (OFFSET/INDEX).
-                </div>
-              </Label>
-            </div>
-          </RadioGroup>
+              </div>
+            );
+          })()}
+          <p className="text-[10px] text-muted-foreground">
+            Type is auto-detected from the formula. Use OFFSET or INDIRECT for dynamic ranges.
+          </p>
         </div>
 
         <div className="space-y-2">
