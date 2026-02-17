@@ -107,17 +107,35 @@ export async function getAllNames(): Promise<ExcelName[]> {
 
 export async function addName(name: string, formula: string, comment = "", scope = "Workbook"): Promise<void> {
   return Excel.run(async (ctx) => {
-    let ref = formula;
-    const raw = ref.replace(/^=/, "");
-    if (!raw.includes("!") && !raw.includes("(")) {
-      const activeSheet = ctx.workbook.worksheets.getActiveWorksheet();
-      activeSheet.load("name");
-      await ctx.sync();
-      ref = `=${activeSheet.name}!${raw}`;
+    const raw = formula.replace(/^=/, "");
+    const hasFunction = /[A-Z]+\(/.test(raw.toUpperCase());
+
+    let item;
+    if (hasFunction) {
+      const ref = raw.startsWith("=") ? raw : `=${raw}`;
+      item = scope === "Workbook"
+        ? ctx.workbook.names.add(name, ref)
+        : ctx.workbook.worksheets.getItem(scope).names.add(name, ref);
+    } else {
+      let sheetName = "";
+      let cellRef = raw;
+      if (raw.includes("!")) {
+        sheetName = raw.split("!")[0].replace(/'/g, "");
+        cellRef = raw.split("!")[1];
+      }
+
+      let range;
+      if (sheetName) {
+        range = ctx.workbook.worksheets.getItem(sheetName).getRange(cellRef);
+      } else {
+        range = ctx.workbook.worksheets.getActiveWorksheet().getRange(cellRef);
+      }
+
+      item = scope === "Workbook"
+        ? ctx.workbook.names.add(name, range)
+        : ctx.workbook.worksheets.getItem(scope).names.add(name, range);
     }
-    const item = scope === "Workbook"
-      ? ctx.workbook.names.add(name, ref)
-      : ctx.workbook.worksheets.getItem(scope).names.add(name, ref);
+
     if (comment) item.comment = comment;
     await ctx.sync();
   });
