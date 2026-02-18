@@ -56,7 +56,7 @@ function buildDynamicFormula(ref: string, options?: DynamicOptions & { lastColOn
   if (!parsed) return `=${ref.replace(/^=/, "")}`;
 
   const { sheet, startCol, startRow, endCol, endRow } = parsed;
-  const sheetPrefix = sheet ? `${sheet}!` : "";
+  const sp = sheetPrefix(sheet);
   const skipRows = options?.skipRows || 0;
   const skipCols = options?.skipCols || 0;
 
@@ -76,9 +76,9 @@ function buildDynamicFormula(ref: string, options?: DynamicOptions & { lastColOn
   const bufferCol = numToCol(Math.min(bufferColNum, 16384));
   const bufferRowNum = Math.min(endRowNum + 20, 1048576);
 
-  const anchorCell = `${sheetPrefix}$${adjustedStartCol}$${adjustedStartRow}`;
-  const rowCountRange = `${sheetPrefix}$${adjustedStartCol}$${adjustedStartRow}:$${adjustedStartCol}$${bufferRowNum}`;
-  const colCountRange = `${sheetPrefix}$${adjustedStartCol}$${adjustedStartRow}:$${bufferCol}$${adjustedStartRow}`;
+  const anchorCell = `${sp}$${adjustedStartCol}$${adjustedStartRow}`;
+  const rowCountRange = `${sp}$${adjustedStartCol}$${adjustedStartRow}:$${adjustedStartCol}$${bufferRowNum}`;
+  const colCountRange = `${sp}$${adjustedStartCol}$${adjustedStartRow}:$${bufferCol}$${adjustedStartRow}`;
 
   if (options?.lastColOnly) {
     return `=OFFSET(${anchorCell},0,COUNTA(${colCountRange})-1,COUNTA(${rowCountRange}),1)`;
@@ -92,11 +92,11 @@ function buildHybridFormula(fixedRef: string, dynamicRef: string, skipRows: numb
   const dynParsed = parseRangeRef(dynamicRef);
   if (!fixedParsed || !dynParsed) return `=${fixedRef.replace(/^=/, "")}`;
 
-  const fixedSheet = fixedParsed.sheet ? `${fixedParsed.sheet}!` : "";
-  const dynSheet = dynParsed.sheet ? `${dynParsed.sheet}!` : "";
+  const fsp = sheetPrefix(fixedParsed.sheet);
+  const dsp = sheetPrefix(dynParsed.sheet);
 
   const fixedStartRow = parseInt(fixedParsed.startRow, 10) + skipRows;
-  const fixedPart = `${fixedSheet}$${fixedParsed.startCol}$${fixedStartRow}:$${fixedParsed.endCol}$${fixedParsed.endRow}`;
+  const fixedPart = `${fsp}$${fixedParsed.startCol}$${fixedStartRow}:$${fixedParsed.endCol}$${fixedParsed.endRow}`;
 
   const dynStartRow = parseInt(dynParsed.startRow, 10) + skipRows;
   const dynEndRow = parseInt(dynParsed.endRow, 10);
@@ -106,15 +106,26 @@ function buildHybridFormula(fixedRef: string, dynamicRef: string, skipRows: numb
   const bufferCol = numToCol(Math.min(bufferColNum, 16384));
   const bufferRowNum = Math.min(dynEndRow + 20, 1048576);
 
-  const dynAnchor = `${dynSheet}$${dynParsed.startCol}$${dynStartRow}`;
-  const rowCountRange = `${dynSheet}$${dynParsed.startCol}$${dynStartRow}:$${dynParsed.startCol}$${bufferRowNum}`;
-  const colCountRange = `${dynSheet}$${dynParsed.startCol}$${dynStartRow}:$${bufferCol}$${dynStartRow}`;
+  const dynAnchor = `${dsp}$${dynParsed.startCol}$${dynStartRow}`;
+  const rowCountRange = `${dsp}$${dynParsed.startCol}$${dynStartRow}:$${dynParsed.startCol}$${bufferRowNum}`;
+  const colCountRange = `${dsp}$${dynParsed.startCol}$${dynStartRow}:$${bufferCol}$${dynStartRow}`;
 
   if (lastColOnly) {
-    return `=(${fixedPart},OFFSET(${dynAnchor},0,COUNTA(${colCountRange})-1,COUNTA(${rowCountRange}),1))`;
+    return `=${fixedPart},OFFSET(${dynAnchor},0,COUNTA(${colCountRange})-1,COUNTA(${rowCountRange}),1)`;
   }
 
-  return `=(${fixedPart},OFFSET(${dynAnchor},0,0,COUNTA(${rowCountRange}),COUNTA(${colCountRange})))`;
+  return `=${fixedPart},OFFSET(${dynAnchor},0,0,COUNTA(${rowCountRange}),COUNTA(${colCountRange}))`;
+}
+
+function quoteSheet(name: string): string {
+  if (!name) return "";
+  if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return name;
+  return `'${name.replace(/'/g, "''")}'`;
+}
+
+function sheetPrefix(sheet: string): string {
+  if (!sheet) return "";
+  return `${quoteSheet(sheet)}!`;
 }
 
 function colToNum(col: string): number {
