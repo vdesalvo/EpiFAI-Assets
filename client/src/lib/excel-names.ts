@@ -219,14 +219,23 @@ export async function getSelection(): Promise<string> {
 export async function onSelectionChange(cb: (address: string) => void): Promise<() => Promise<void>> {
   let handler: any;
   await Excel.run(async (ctx) => {
-    handler = ctx.workbook.worksheets.getActiveWorksheet().onSelectionChanged.add((e: any) => cb(e.address));
+    const sheet = ctx.workbook.worksheets.getActiveWorksheet();
+    sheet.load("name");
+    await ctx.sync();
+    const sheetName = sheet.name;
+    handler = sheet.onSelectionChanged.add((e: any) => {
+      const addr = e.address || "";
+      const fullAddr = addr.includes("!") ? addr : `${sheetName}!${addr}`;
+      cb(fullAddr);
+    });
     await ctx.sync();
   });
-  return async () => { 
-    await Excel.run(async (ctx) => { 
-      // This part handles removal, precise implementation might vary based on Office.js version
-      // handler.remove(); 
-      await ctx.sync(); 
-    }); 
+  return async () => {
+    if (handler) {
+      await Excel.run(async (ctx) => {
+        handler.remove();
+        await ctx.sync();
+      });
+    }
   };
 }
