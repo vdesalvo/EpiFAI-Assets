@@ -129,7 +129,7 @@ export default function Home() {
   const handleDeleteName = async (name: ExcelName) => {
     if (!confirm(`Are you sure you want to delete "${name.name}"?`)) return;
     try {
-      await deleteName.mutateAsync(name.name);
+      await deleteName.mutateAsync({ name: name.name, scope: name.scope });
       toast({ description: `Deleted "${name.name}"` });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message });
