@@ -107,7 +107,12 @@ export async function getAllNames(): Promise<ExcelName[]> {
           address = r.address;
           values = r.values;
         } catch {
-          status = "broken";
+          const f = (item.formula || "").toUpperCase();
+          if (f.includes("OFFSET(") || f.includes("INDIRECT(") || f.includes("INDEX(")) {
+            status = "valid";
+          } else {
+            status = "broken";
+          }
         }
 
         const rawComment = item.comment || "";
@@ -148,7 +153,12 @@ export async function getAllNames(): Promise<ExcelName[]> {
             await ctx.sync();
             address = r.address;
           } catch {
-            status = "broken";
+            const f = (item.formula || "").toUpperCase();
+            if (f.includes("OFFSET(") || f.includes("INDIRECT(") || f.includes("INDEX(")) {
+              status = "valid";
+            } else {
+              status = "broken";
+            }
           }
           const rawComment2 = item.comment || "";
           const isEpifai2 = rawComment2.includes(EPIFAI_TAG);
@@ -307,14 +317,12 @@ export async function goToName(params: { name: string; scope: string }): Promise
       await ctx.sync();
 
       const formula = namedItem.formula.replace(/^=/, "");
-      let sheetName = "";
-      let cellRef = formula;
-      if (formula.includes("!")) {
-        sheetName = formula.split("!")[0].replace(/'/g, "");
-        cellRef = formula.split("!")[1];
-      }
-
-      if (sheetName) {
+      const refMatch = formula.match(/(?:'([^']+)'|([A-Za-z0-9_]+))!\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?/);
+      if (refMatch) {
+        const sheetName = refMatch[1] || refMatch[2];
+        const cellRef = refMatch[5]
+          ? `$${refMatch[3]}$${refMatch[4]}:$${refMatch[5]}$${refMatch[6]}`
+          : `$${refMatch[3]}$${refMatch[4]}`;
         const sheet = ctx.workbook.worksheets.getItem(sheetName);
         sheet.activate();
         await ctx.sync();
@@ -338,13 +346,35 @@ export async function selectNameRange(params: { name: string; scope: string }): 
       } else {
         namedItem = ctx.workbook.names.getItem(params.name);
       }
-      const range = namedItem.getRange();
-      range.load("worksheet");
+
+      try {
+        const range = namedItem.getRange();
+        range.load("worksheet");
+        await ctx.sync();
+        range.worksheet.activate();
+        await ctx.sync();
+        range.select();
+        await ctx.sync();
+        return;
+      } catch (_) {
+      }
+
+      namedItem.load("formula");
       await ctx.sync();
-      range.worksheet.activate();
-      await ctx.sync();
-      range.select();
-      await ctx.sync();
+      const formula = namedItem.formula.replace(/^=/, "");
+      const refMatch = formula.match(/(?:'([^']+)'|([A-Za-z0-9_]+))!\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?/);
+      if (refMatch) {
+        const sheetName = refMatch[1] || refMatch[2];
+        const cellRef = refMatch[5]
+          ? `$${refMatch[3]}$${refMatch[4]}:$${refMatch[5]}$${refMatch[6]}`
+          : `$${refMatch[3]}$${refMatch[4]}`;
+        const sheet = ctx.workbook.worksheets.getItem(sheetName);
+        sheet.activate();
+        await ctx.sync();
+        const range = sheet.getRange(cellRef);
+        range.select();
+        await ctx.sync();
+      }
     } catch (err) {
       console.error("selectNameRange error:", err);
     }
