@@ -6,7 +6,7 @@ import { NameEditor } from "@/components/NameEditor";
 import { FullPageLoader, LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { ExcelName } from "@/lib/excel-names";
-import { RefreshCw, Table2, BarChart3, Info, Download } from "lucide-react";
+import { RefreshCw, Table2, BarChart3, Info, Download, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -26,7 +26,7 @@ function BuildTimestamp() {
 }
 
 // Simple Chart List Item Component (Internal)
-function ChartListItem({ chart, onRename, onGoTo }: { chart: any, onRename: (id: string, name: string) => void, onGoTo: (c: any) => void }) {
+function ChartListItem({ chart, onRename, onGoTo, onCreateName }: { chart: any, onRename: (id: string, name: string) => void, onGoTo: (c: any) => void, onCreateName: (title: string) => void }) {
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(chart.name);
 
@@ -52,6 +52,7 @@ function ChartListItem({ chart, onRename, onGoTo }: { chart: any, onRename: (id:
               onBlur={handleSave}
               onKeyDown={e => e.key === 'Enter' && handleSave()}
               autoFocus
+              data-testid={`input-chart-rename-${chart.id}`}
             />
           ) : (
             <div className="text-sm font-semibold text-foreground truncate cursor-text" onClick={() => setIsEditing(true)} title="Click to rename">
@@ -61,9 +62,16 @@ function ChartListItem({ chart, onRename, onGoTo }: { chart: any, onRename: (id:
           <div className="text-xs text-muted-foreground truncate">{chart.title} • {chart.sheet}</div>
         </div>
       </div>
-      <Button size="sm" variant="ghost" className="shrink-0 ml-2" onClick={() => onGoTo(chart)}>
-        Go To
-      </Button>
+      <div className="flex items-center gap-1 shrink-0 ml-2">
+        {chart.title && (
+          <Button size="icon" variant="ghost" onClick={() => onCreateName(chart.title)} title="Create named range from chart title" data-testid={`button-create-name-${chart.id}`}>
+            <Plus className="w-4 h-4" />
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={() => onGoTo(chart)} data-testid={`button-goto-chart-${chart.id}`}>
+          Go To
+        </Button>
+      </div>
     </div>
   );
 }
@@ -87,6 +95,7 @@ export default function Home() {
   // UI State
   const [view, setView] = useState<"list" | "edit">("list");
   const [editTarget, setEditTarget] = useState<ExcelName | undefined>(undefined);
+  const [prefillName, setPrefillName] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState("names");
 
   useEffect(() => {
@@ -103,11 +112,25 @@ export default function Home() {
 
   const handleCreateName = () => {
     setEditTarget(undefined);
+    setPrefillName(undefined);
     setView("edit");
   };
 
   const handleEditName = (name: ExcelName) => {
     setEditTarget(name);
+    setPrefillName(undefined);
+    setView("edit");
+  };
+
+  const handleCreateNameFromChart = (title: string) => {
+    const sanitized = title
+      .replace(/[^A-Za-z0-9_.\\]/g, "_")
+      .replace(/^(\d)/, "_$1")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "") || "ChartName";
+    setEditTarget(undefined);
+    setPrefillName(sanitized);
+    setActiveTab("names");
     setView("edit");
   };
 
@@ -247,7 +270,9 @@ export default function Home() {
                   className="absolute inset-0"
                 >
                   <NameEditor 
-                    initialData={editTarget} 
+                    key={prefillName || editTarget?.name || "new"}
+                    initialData={editTarget}
+                    prefillName={prefillName}
                     onSave={handleSaveName} 
                     onCancel={() => setView("list")} 
                   />
@@ -270,6 +295,7 @@ export default function Home() {
                     chart={c} 
                     onRename={handleRenameChart}
                     onGoTo={(c) => goToChart.mutate({sheet: c.sheet, name: c.name})}
+                    onCreateName={handleCreateNameFromChart}
                   />
                  ))}
                </div>

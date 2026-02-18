@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 interface NameEditorProps {
   initialData?: ExcelName;
+  prefillName?: string;
   onSave: (data: {
     name: string;
     refersTo: string;
@@ -146,8 +147,8 @@ function numToCol(num: number): string {
   return col;
 }
 
-export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
-  const [name, setName] = useState(initialData?.name || "");
+export function NameEditor({ initialData, prefillName, onSave, onCancel }: NameEditorProps) {
+  const [name, setName] = useState(initialData?.name || prefillName || "");
   const [refersTo, setRefersTo] = useState(initialData?.formula.replace(/^=/, "") || "");
   const [comment, setComment] = useState(initialData?.comment || "");
 
