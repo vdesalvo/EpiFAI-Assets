@@ -32,21 +32,42 @@ function parseRangeRef(ref: string): { sheet: string; startCol: string; startRow
   };
 }
 
-function buildDynamicFormula(ref: string): string {
+interface DynamicOptions {
+  skipRows: number;
+  skipCols: number;
+}
+
+function buildDynamicFormula(ref: string, options?: DynamicOptions): string {
   const parsed = parseRangeRef(ref);
   if (!parsed) return `=${ref.replace(/^=/, "")}`;
 
   const { sheet, startCol, startRow, endCol, endRow } = parsed;
   const sheetPrefix = sheet ? `${sheet}!` : "";
+  const skipRows = options?.skipRows || 0;
+  const skipCols = options?.skipCols || 0;
 
+  const startColNum = colToNum(startCol);
   const endColNum = colToNum(endCol);
+  const maxSkipCols = Math.max(0, endColNum - startColNum);
+  const clampedSkipCols = Math.min(skipCols, maxSkipCols);
+  const adjustedStartCol = numToCol(startColNum + clampedSkipCols);
+
+  const startRowNum = parseInt(startRow, 10);
+  const endRowNum = parseInt(endRow, 10);
+  const maxSkipRows = Math.max(0, endRowNum - startRowNum);
+  const clampedSkipRows = Math.min(skipRows, maxSkipRows);
+  const adjustedStartRow = startRowNum + clampedSkipRows;
+
   const bufferColNum = endColNum + 20;
   const bufferCol = numToCol(Math.min(bufferColNum, 16384));
 
-  const endRowNum = parseInt(endRow, 10);
   const bufferRowNum = Math.min(endRowNum + 20, 1048576);
 
-  return `=OFFSET(${sheetPrefix}$${startCol}$${startRow},0,0,COUNTA(${sheetPrefix}$${startCol}$${startRow}:$${startCol}$${bufferRowNum}),COUNTA(${sheetPrefix}$${startCol}$${startRow}:$${bufferCol}$${startRow}))`;
+  const anchorCell = `${sheetPrefix}$${adjustedStartCol}$${adjustedStartRow}`;
+  const rowCountRange = `${sheetPrefix}$${adjustedStartCol}$${adjustedStartRow}:$${adjustedStartCol}$${bufferRowNum}`;
+  const colCountRange = `${sheetPrefix}$${adjustedStartCol}$${adjustedStartRow}:$${bufferCol}$${adjustedStartRow}`;
+
+  return `=OFFSET(${anchorCell},0,0,COUNTA(${rowCountRange}),COUNTA(${colCountRange}))`;
 }
 
 function colToNum(col: string): number {
@@ -74,6 +95,8 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
   const [type, setType] = useState<"fixed" | "dynamic">(
     initialData ? (detectIsDynamic(initialData.formula) ? "dynamic" : "fixed") : "fixed"
   );
+  const [skipRows, setSkipRows] = useState(0);
+  const [skipCols, setSkipCols] = useState(0);
   const [picking, setPicking] = useState(false);
   const unregRef = useRef<(() => Promise<void>) | null>(null);
 
@@ -131,7 +154,7 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
 
     let finalRef: string;
     if (type === "dynamic" && !detectIsDynamic(refersTo)) {
-      finalRef = buildDynamicFormula(refersTo);
+      finalRef = buildDynamicFormula(refersTo, { skipRows, skipCols });
     } else {
       finalRef = `=${refersTo.replace(/^=/, "")}`;
     }
@@ -145,7 +168,7 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
   };
 
   const previewFormula = type === "dynamic" && !detectIsDynamic(refersTo) && refersTo.trim()
-    ? buildDynamicFormula(refersTo)
+    ? buildDynamicFormula(refersTo, { skipRows, skipCols })
     : null;
 
   return (
@@ -239,6 +262,40 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
               </Label>
             </div>
           </RadioGroup>
+          {type === "dynamic" && (
+            <div className="bg-muted/30 border rounded-md p-3 space-y-3">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Skip Options</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="skipRows" className="text-[11px] text-muted-foreground">Skip rows from top</Label>
+                  <Input
+                    id="skipRows"
+                    type="number"
+                    min={0}
+                    value={skipRows}
+                    onChange={e => setSkipRows(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="h-8 text-xs font-mono"
+                    data-testid="input-skip-rows"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="skipCols" className="text-[11px] text-muted-foreground">Skip columns from left</Label>
+                  <Input
+                    id="skipCols"
+                    type="number"
+                    min={0}
+                    value={skipCols}
+                    onChange={e => setSkipCols(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="h-8 text-xs font-mono"
+                    data-testid="input-skip-cols"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-snug">
+                Use these to exclude header rows or label columns from the dynamic range. The range will start counting after the skipped rows/columns.
+              </p>
+            </div>
+          )}
           {previewFormula && (
             <div className="bg-muted/50 border rounded-md p-2">
               <p className="text-[10px] text-muted-foreground mb-1 font-medium">Generated formula:</p>
