@@ -207,6 +207,28 @@ export async function goToName(params: { name: string; scope: string }): Promise
   });
 }
 
+export async function selectNameRange(params: { name: string; scope: string }): Promise<void> {
+  return Excel.run(async (ctx) => {
+    try {
+      let namedItem;
+      if (params.scope && params.scope !== "Workbook") {
+        namedItem = ctx.workbook.worksheets.getItem(params.scope).names.getItem(params.name);
+      } else {
+        namedItem = ctx.workbook.names.getItem(params.name);
+      }
+      const range = namedItem.getRange();
+      range.load("worksheet");
+      await ctx.sync();
+      range.worksheet.activate();
+      await ctx.sync();
+      range.select();
+      await ctx.sync();
+    } catch (err) {
+      console.error("selectNameRange error:", err);
+    }
+  });
+}
+
 export async function getSelection(): Promise<string> {
   return Excel.run(async (ctx) => {
     const r = ctx.workbook.getSelectedRange();

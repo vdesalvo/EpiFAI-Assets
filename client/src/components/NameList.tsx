@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExcelName } from "@/lib/excel-names";
+import { ExcelName, selectNameRange } from "@/lib/excel-names";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -114,7 +114,13 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate }: NameList
             return (
               <div
                 key={n.name + n.scope}
-                onClick={() => setSelectedId(isSelected ? null : n.name)}
+                onClick={() => {
+                  const newId = isSelected ? null : n.name;
+                  setSelectedId(newId);
+                  if (newId && n.status === "valid") {
+                    selectNameRange({ name: n.name, scope: n.scope }).catch(() => {});
+                  }
+                }}
                 className={cn(
                   "border-b border-border/40 transition-colors cursor-pointer group",
                   isSelected ? "bg-accent/30 border-l-4 border-l-primary" : "hover-elevate border-l-4 border-l-transparent"
