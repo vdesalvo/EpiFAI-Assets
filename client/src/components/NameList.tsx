@@ -13,7 +13,8 @@ import {
   CheckCircle2,
   HelpCircle,
   LayoutGrid,
-  Maximize
+  Maximize,
+  Columns
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -61,9 +62,12 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDel
     }
   };
 
-  const isDynamic = (formula: string) => {
-    const u = formula.toUpperCase();
-    return u.includes("OFFSET(") || u.includes("INDIRECT(") || u.includes("INDEX(");
+  const getRangeType = (n: ExcelName): "fixed" | "dynamic" | "hybrid" => {
+    const u = n.formula.toUpperCase();
+    const hasOffset = u.includes("OFFSET(") || u.includes("INDIRECT(") || u.includes("INDEX(");
+    if (!hasOffset) return "fixed";
+    if (n.fixedCols > 0) return "hybrid";
+    return "dynamic";
   };
 
   return (
@@ -116,7 +120,8 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDel
           
           {filteredNames.map((n) => {
             const isSelected = selectedId === n.name;
-            const dynamic = isDynamic(n.formula);
+            const rangeType = getRangeType(n);
+            const dynamic = rangeType !== "fixed";
             
             return (
               <div
@@ -150,9 +155,17 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDel
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <Badge variant={dynamic ? "info" : "secondary"} className="text-[10px] h-5 px-1.5">
-                        {dynamic ? <Maximize className="w-2.5 h-2.5 mr-1"/> : <LayoutGrid className="w-2.5 h-2.5 mr-1"/>}
-                        {dynamic ? "Dynamic" : "Fixed"}
+                      <Badge 
+                        variant={rangeType === "fixed" ? "secondary" : "info"} 
+                        className="text-[10px] h-5 px-1.5"
+                      >
+                        {rangeType === "hybrid" ? (
+                          <><Columns className="w-2.5 h-2.5 mr-1"/> Hybrid</>
+                        ) : rangeType === "dynamic" ? (
+                          <><Maximize className="w-2.5 h-2.5 mr-1"/> Dynamic</>
+                        ) : (
+                          <><LayoutGrid className="w-2.5 h-2.5 mr-1"/> Fixed</>
+                        )}
                       </Badge>
                       {getStatusBadge(n.status)}
                     </div>

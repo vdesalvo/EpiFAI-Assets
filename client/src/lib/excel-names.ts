@@ -2,10 +2,16 @@
 
 export const EPIFAI_TAG = "[Epifai]";
 const SKIP_TAG_RE = /\[skip:(\d+),(\d+)\]/;
+const FIXCOL_TAG_RE = /\[fixcols:(\d+)\]/;
 
 export function parseSkipTag(comment: string): { skipRows: number; skipCols: number } {
   const m = comment.match(SKIP_TAG_RE);
   return m ? { skipRows: parseInt(m[1], 10), skipCols: parseInt(m[2], 10) } : { skipRows: 0, skipCols: 0 };
+}
+
+export function parseFixedColsTag(comment: string): number {
+  const m = comment.match(FIXCOL_TAG_RE);
+  return m ? parseInt(m[1], 10) : 0;
 }
 
 export function buildSkipTag(skipRows: number, skipCols: number): string {
@@ -13,8 +19,13 @@ export function buildSkipTag(skipRows: number, skipCols: number): string {
   return `[skip:${skipRows},${skipCols}]`;
 }
 
+export function buildFixedColsTag(fixedCols: number): string {
+  if (fixedCols <= 0) return "";
+  return `[fixcols:${fixedCols}]`;
+}
+
 export function stripMetaTags(comment: string): string {
-  return comment.replace(EPIFAI_TAG, "").replace(SKIP_TAG_RE, "").trim();
+  return comment.replace(EPIFAI_TAG, "").replace(SKIP_TAG_RE, "").replace(FIXCOL_TAG_RE, "").trim();
 }
 
 export interface ExcelName {
@@ -31,6 +42,7 @@ export interface ExcelName {
   origin: "epifai" | "excel";
   skipRows: number;
   skipCols: number;
+  fixedCols: number;
 }
 
 export interface UpdateNameParams {
@@ -39,6 +51,7 @@ export interface UpdateNameParams {
   comment?: string;
   skipRows?: number;
   skipCols?: number;
+  fixedCols?: number;
 }
 
 export async function getAllNames(): Promise<ExcelName[]> {
@@ -86,6 +99,7 @@ export async function getAllNames(): Promise<ExcelName[]> {
           origin: isEpifai ? "epifai" : "excel",
           skipRows: skip.skipRows,
           skipCols: skip.skipCols,
+          fixedCols: parseFixedColsTag(rawComment),
         });
       }
 
@@ -122,6 +136,7 @@ export async function getAllNames(): Promise<ExcelName[]> {
             origin: isEpifai2 ? "epifai" : "excel",
             skipRows: skip2.skipRows,
             skipCols: skip2.skipCols,
+            fixedCols: parseFixedColsTag(rawComment2),
           });
         }
       }
@@ -134,16 +149,16 @@ export async function getAllNames(): Promise<ExcelName[]> {
     if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
        console.warn("Mocking Excel Data for Development");
        return [
-         { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid", origin: "epifai" as const, skipRows: 0, skipCols: 0 },
-         { name: "Expenses_Q1", type: "Range", value: 500, formula: "=Sheet1!$B$2", comment: "", visible: true, scope: "Workbook", address: "Sheet1!$B$2", status: "valid", origin: "excel" as const, skipRows: 0, skipCols: 0 },
-         { name: "Broken_Ref", type: "Range", value: "#REF!", formula: "=Sheet1!$Z$99", comment: "Old ref", visible: true, scope: "Workbook", address: "", status: "broken", origin: "excel" as const, skipRows: 0, skipCols: 0 }
+         { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid", origin: "epifai" as const, skipRows: 0, skipCols: 0, fixedCols: 0 },
+         { name: "Expenses_Q1", type: "Range", value: 500, formula: "=Sheet1!$B$2", comment: "", visible: true, scope: "Workbook", address: "Sheet1!$B$2", status: "valid", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedCols: 0 },
+         { name: "Broken_Ref", type: "Range", value: "#REF!", formula: "=Sheet1!$Z$99", comment: "Old ref", visible: true, scope: "Workbook", address: "", status: "broken", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedCols: 0 }
        ];
     }
     throw error;
   }
 }
 
-export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0): Promise<void> {
+export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedCols = 0): Promise<void> {
   return Excel.run(async (ctx) => {
     const raw = formula.replace(/^=/, "");
     const hasFunction = /[A-Z]+\(/.test(raw.toUpperCase());
@@ -175,7 +190,8 @@ export async function addName(name: string, formula: string, comment = "", scope
     }
 
     const skipTag = buildSkipTag(skipRows, skipCols);
-    const parts = [comment, skipTag, EPIFAI_TAG].filter(Boolean);
+    const fixColTag = buildFixedColsTag(fixedCols);
+    const parts = [comment, skipTag, fixColTag, EPIFAI_TAG].filter(Boolean);
     item.comment = parts.join(" ");
     await ctx.sync();
   });
@@ -195,8 +211,10 @@ export async function updateName(name: string, updates: UpdateNameParams): Promi
     const userComment = updates.comment !== undefined ? updates.comment : stripMetaTags(oldRaw);
     const skipR = updates.skipRows !== undefined ? updates.skipRows : parseSkipTag(oldRaw).skipRows;
     const skipC = updates.skipCols !== undefined ? updates.skipCols : parseSkipTag(oldRaw).skipCols;
+    const fixC = updates.fixedCols !== undefined ? updates.fixedCols : parseFixedColsTag(oldRaw);
     const skipTag = buildSkipTag(skipR, skipC);
-    const parts = [userComment, skipTag, hadEpifaiTag ? EPIFAI_TAG : ""].filter(Boolean);
+    const fixColTag = buildFixedColsTag(fixC);
+    const parts = [userComment, skipTag, fixColTag, hadEpifaiTag ? EPIFAI_TAG : ""].filter(Boolean);
     item.comment = parts.join(" ");
     
     if (updates.newName && updates.newName !== item.name) {

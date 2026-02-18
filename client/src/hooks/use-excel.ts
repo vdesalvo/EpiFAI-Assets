@@ -15,8 +15,8 @@ export function useNames() {
 export function useAddName() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, formula, comment, skipRows, skipCols }: { name: string; formula: string; comment?: string; skipRows?: number; skipCols?: number }) => 
-      namesSvc.addName(name, formula, comment, "Workbook", skipRows || 0, skipCols || 0),
+    mutationFn: ({ name, formula, comment, skipRows, skipCols, fixedCols }: { name: string; formula: string; comment?: string; skipRows?: number; skipCols?: number; fixedCols?: number }) => 
+      namesSvc.addName(name, formula, comment, "Workbook", skipRows || 0, skipCols || 0, fixedCols || 0),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-names"] }),
   });
 }

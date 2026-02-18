@@ -111,13 +111,13 @@ export default function Home() {
     setView("edit");
   };
 
-  const handleSaveName = async (data: { name: string; refersTo: string; comment: string; newName?: string; skipRows?: number; skipCols?: number }) => {
+  const handleSaveName = async (data: { name: string; refersTo: string; comment: string; newName?: string; skipRows?: number; skipCols?: number; fixedCols?: number }) => {
     try {
       if (editTarget) {
-        await updateName.mutateAsync({ name: editTarget.name, updates: { ...data, skipRows: data.skipRows, skipCols: data.skipCols } });
+        await updateName.mutateAsync({ name: editTarget.name, updates: { ...data, skipRows: data.skipRows, skipCols: data.skipCols, fixedCols: data.fixedCols } });
         toast({ title: "Updated", description: `Updated range "${data.newName || data.name}"` });
       } else {
-        await addName.mutateAsync({ name: data.name, formula: data.refersTo, comment: data.comment, skipRows: data.skipRows || 0, skipCols: data.skipCols || 0 });
+        await addName.mutateAsync({ name: data.name, formula: data.refersTo, comment: data.comment, skipRows: data.skipRows || 0, skipCols: data.skipCols || 0, fixedCols: data.fixedCols || 0 });
         toast({ title: "Created", description: `Created range "${data.name}"` });
       }
       setView("list");
