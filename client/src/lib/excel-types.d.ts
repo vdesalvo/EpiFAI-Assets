@@ -72,6 +72,7 @@ declare namespace Excel {
     title: { text: string };
     activate(): void;
     getImage(): { value: string };
+    getDataRange(): Range;
     load(propertyNames?: string | string[]): void;
   }
 

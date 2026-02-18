@@ -1,4 +1,5 @@
 /// <reference path="./excel-types.d.ts" />
+import { addName } from "./excel-names";
 
 export interface ExcelChart {
   id: string;
@@ -71,4 +72,28 @@ export async function goToChart(sheetName: string, chartName: string): Promise<v
 
 export function isDefaultName(name: string): boolean {
   return /^Chart \d+$/.test(name);
+}
+
+export function sanitizeChartTitle(title: string): string {
+  return title
+    .replace(/[^A-Za-z0-9_.\\]/g, "_")
+    .replace(/^(\d)/, "_$1")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "") || "ChartName";
+}
+
+export async function createNameFromChart(sheetName: string, chartName: string, title: string): Promise<string> {
+  const rangeName = sanitizeChartTitle(title);
+
+  const address = await Excel.run(async (ctx) => {
+    const sheet = ctx.workbook.worksheets.getItem(sheetName);
+    const chart = sheet.charts.getItem(chartName);
+    const dataRange = chart.getDataRange();
+    dataRange.load("address");
+    await ctx.sync();
+    return dataRange.address;
+  });
+
+  await addName(rangeName, `=${address}`, `Source: ${title}`);
+  return rangeName;
 }

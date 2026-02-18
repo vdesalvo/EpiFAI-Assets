@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useRenameChart, useGoToChart } from "@/hooks/use-excel";
+import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useRenameChart, useGoToChart, useCreateNameFromChart } from "@/hooks/use-excel";
 import { NameList } from "@/components/NameList";
 import { NameEditor } from "@/components/NameEditor";
 import { FullPageLoader, LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -26,7 +26,7 @@ function BuildTimestamp() {
 }
 
 // Simple Chart List Item Component (Internal)
-function ChartListItem({ chart, onRename, onGoTo, onCreateName }: { chart: any, onRename: (id: string, name: string) => void, onGoTo: (c: any) => void, onCreateName: (title: string) => void }) {
+function ChartListItem({ chart, onRename, onGoTo, onCreateName }: { chart: any, onRename: (id: string, name: string) => void, onGoTo: (c: any) => void, onCreateName: (c: any) => void }) {
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(chart.name);
 
@@ -63,8 +63,8 @@ function ChartListItem({ chart, onRename, onGoTo, onCreateName }: { chart: any, 
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0 ml-2">
-        {chart.title && (
-          <Button size="icon" variant="ghost" onClick={() => onCreateName(chart.title)} title="Create named range from chart title" data-testid={`button-create-name-${chart.id}`}>
+        {chart.title && chart.title !== "(No Title)" && (
+          <Button size="icon" variant="ghost" onClick={() => onCreateName(chart)} title="Create named range from chart title" data-testid={`button-create-name-${chart.id}`}>
             <Plus className="w-4 h-4" />
           </Button>
         )}
@@ -91,11 +91,11 @@ export default function Home() {
   const goToName = useGoToName();
   const renameChart = useRenameChart();
   const goToChart = useGoToChart();
+  const createNameFromChart = useCreateNameFromChart();
 
   // UI State
   const [view, setView] = useState<"list" | "edit">("list");
   const [editTarget, setEditTarget] = useState<ExcelName | undefined>(undefined);
-  const [prefillName, setPrefillName] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState("names");
 
   useEffect(() => {
@@ -112,26 +112,22 @@ export default function Home() {
 
   const handleCreateName = () => {
     setEditTarget(undefined);
-    setPrefillName(undefined);
     setView("edit");
   };
 
   const handleEditName = (name: ExcelName) => {
     setEditTarget(name);
-    setPrefillName(undefined);
     setView("edit");
   };
 
-  const handleCreateNameFromChart = (title: string) => {
-    const sanitized = title
-      .replace(/[^A-Za-z0-9_.\\]/g, "_")
-      .replace(/^(\d)/, "_$1")
-      .replace(/_+/g, "_")
-      .replace(/^_|_$/g, "") || "ChartName";
-    setEditTarget(undefined);
-    setPrefillName(sanitized);
-    setActiveTab("names");
-    setView("edit");
+  const handleCreateNameFromChart = async (chart: any) => {
+    try {
+      const createdName = await createNameFromChart.mutateAsync({ sheet: chart.sheet, chartName: chart.name, title: chart.title });
+      toast({ title: "Created", description: `Named range "${createdName}" created from chart data` });
+      refetchNames();
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message || "Could not create name from chart" });
+    }
   };
 
   const handleSaveName = async (data: { name: string; refersTo: string; comment: string; newName?: string; skipRows?: number; skipCols?: number; fixedRef?: string; dynamicRef?: string; lastColOnly?: boolean }) => {
@@ -270,9 +266,8 @@ export default function Home() {
                   className="absolute inset-0"
                 >
                   <NameEditor 
-                    key={prefillName || editTarget?.name || "new"}
+                    key={editTarget?.name || "new"}
                     initialData={editTarget}
-                    prefillName={prefillName}
                     onSave={handleSaveName} 
                     onCancel={() => setView("list")} 
                   />

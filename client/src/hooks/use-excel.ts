@@ -84,3 +84,12 @@ export function useGoToChart() {
       chartsSvc.goToChart(sheet, name),
   });
 }
+
+export function useCreateNameFromChart() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sheet, chartName, title }: { sheet: string; chartName: string; title: string }) =>
+      chartsSvc.createNameFromChart(sheet, chartName, title),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-names"] }),
+  });
+}
