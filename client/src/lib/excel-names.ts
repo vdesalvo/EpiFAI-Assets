@@ -273,6 +273,19 @@ export async function goToName(params: { name: string; scope: string }): Promise
       } else {
         namedItem = ctx.workbook.names.getItem(params.name);
       }
+
+      try {
+        const range = namedItem.getRange();
+        range.load("worksheet");
+        await ctx.sync();
+        range.worksheet.activate();
+        await ctx.sync();
+        range.select();
+        await ctx.sync();
+        return;
+      } catch (_) {
+      }
+
       namedItem.load("formula");
       await ctx.sync();
 
@@ -289,10 +302,6 @@ export async function goToName(params: { name: string; scope: string }): Promise
         sheet.activate();
         await ctx.sync();
         const range = sheet.getRange(cellRef);
-        range.select();
-        await ctx.sync();
-      } else {
-        const range = namedItem.getRange();
         range.select();
         await ctx.sync();
       }
