@@ -36,14 +36,17 @@ function buildDynamicFormula(ref: string): string {
   const parsed = parseRangeRef(ref);
   if (!parsed) return `=${ref.replace(/^=/, "")}`;
 
-  const { sheet, startCol, startRow, endCol } = parsed;
+  const { sheet, startCol, startRow, endCol, endRow } = parsed;
   const sheetPrefix = sheet ? `${sheet}!` : "";
 
   const endColNum = colToNum(endCol);
   const bufferColNum = endColNum + 20;
   const bufferCol = numToCol(Math.min(bufferColNum, 16384));
 
-  return `=OFFSET(${sheetPrefix}$${startCol}$${startRow},0,0,COUNTA(${sheetPrefix}$${startCol}$${startRow}:$${startCol}$1048576),COUNTA(${sheetPrefix}$${startCol}$${startRow}:$${bufferCol}$${startRow}))`;
+  const endRowNum = parseInt(endRow, 10);
+  const bufferRowNum = Math.min(endRowNum + 20, 1048576);
+
+  return `=OFFSET(${sheetPrefix}$${startCol}$${startRow},0,0,COUNTA(${sheetPrefix}$${startCol}$${startRow}:$${startCol}$${bufferRowNum}),COUNTA(${sheetPrefix}$${startCol}$${startRow}:$${bufferCol}$${startRow}))`;
 }
 
 function colToNum(col: string): number {
