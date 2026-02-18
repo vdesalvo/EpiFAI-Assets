@@ -137,6 +137,11 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate }: NameList
                   <div className="text-xs font-mono text-muted-foreground truncate mb-1 bg-muted/30 p-1 rounded">
                     {n.formula.replace(/^=/, "")}
                   </div>
+                  {dynamic && n.address && (
+                    <div className="text-[10px] text-muted-foreground mb-1">
+                      Currently resolves to: <span className="font-mono font-medium text-foreground/70">{n.address}</span>
+                    </div>
+                  )}
 
                   {n.scope !== "Workbook" && (
                     <span className="inline-block text-[10px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 px-1.5 py-0.5 rounded border border-purple-100 dark:border-purple-800 mb-1">
