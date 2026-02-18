@@ -23,9 +23,10 @@ interface NameListProps {
   onDelete: (name: ExcelName) => void;
   onGoTo: (name: ExcelName) => void;
   onCreate: () => void;
+  pendingDeleteName?: string | null;
 }
 
-export function NameList({ names, onEdit, onDelete, onGoTo, onCreate }: NameListProps) {
+export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDeleteName }: NameListProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "valid" | "broken" | "unused">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -184,12 +185,13 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate }: NameList
                         </Button>
                         <Button 
                           size="sm" 
-                          variant="ghost"
-                          className="text-xs text-destructive"
+                          variant={pendingDeleteName === n.name ? "destructive" : "ghost"}
+                          className={cn("text-xs", pendingDeleteName !== n.name && "text-destructive")}
                           onClick={(e) => { e.stopPropagation(); onDelete(n); }}
                           data-testid={`button-delete-${n.name}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
+                          {pendingDeleteName === n.name && <span className="ml-1">Confirm?</span>}
                         </Button>
                       </div>
                     </div>

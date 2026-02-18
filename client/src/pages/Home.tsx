@@ -126,13 +126,20 @@ export default function Home() {
     }
   };
 
+  const [pendingDelete, setPendingDelete] = useState<ExcelName | null>(null);
+
   const handleDeleteName = async (name: ExcelName) => {
-    if (!confirm(`Are you sure you want to delete "${name.name}"?`)) return;
+    if (!pendingDelete || pendingDelete.name !== name.name) {
+      setPendingDelete(name);
+      return;
+    }
     try {
       await deleteName.mutateAsync({ name: name.name, scope: name.scope });
       toast({ description: `Deleted "${name.name}"` });
+      setPendingDelete(null);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message });
+      setPendingDelete(null);
     }
   };
 
@@ -228,6 +235,7 @@ export default function Home() {
                     onEdit={handleEditName}
                     onDelete={handleDeleteName}
                     onGoTo={handleGoToName}
+                    pendingDeleteName={pendingDelete?.name || null}
                   />
                 </motion.div>
               ) : (
