@@ -66,7 +66,7 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDel
     const u = n.formula.toUpperCase();
     const hasOffset = u.includes("OFFSET(") || u.includes("INDIRECT(") || u.includes("INDEX(");
     if (!hasOffset) return "fixed";
-    if (n.fixedCols > 0) return "hybrid";
+    if (n.fixedRef && n.dynamicRef) return "hybrid";
     return "dynamic";
   };
 

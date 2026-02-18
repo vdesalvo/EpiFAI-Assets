@@ -5,21 +5,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { Grid, ArrowDownUp, MousePointerClick, Columns } from "lucide-react";
+import { Grid, ArrowDownUp, MousePointerClick, Columns, Lock, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NameEditorProps {
   initialData?: ExcelName;
-  onSave: (data: { name: string; refersTo: string; comment: string; newName?: string; skipRows?: number; skipCols?: number; fixedCols?: number }) => void;
+  onSave: (data: {
+    name: string;
+    refersTo: string;
+    comment: string;
+    newName?: string;
+    skipRows?: number;
+    skipCols?: number;
+    fixedRef?: string;
+    dynamicRef?: string;
+  }) => void;
   onCancel: () => void;
 }
 
-function detectRangeType(formula: string): "fixed" | "dynamic" | "hybrid" {
+function detectRangeType(formula: string, fixedRef: string, dynamicRef: string): "fixed" | "dynamic" | "hybrid" {
+  if (fixedRef && dynamicRef) return "hybrid";
   const u = formula.toUpperCase();
   const hasOffset = u.includes("OFFSET(") || u.includes("INDIRECT(") || u.includes("INDEX(");
   if (!hasOffset) return "fixed";
-  const hasComma = u.includes(",OFFSET(");
-  if (hasComma) return "hybrid";
   return "dynamic";
 }
 
@@ -64,7 +72,6 @@ function buildDynamicFormula(ref: string, options?: DynamicOptions): string {
 
   const bufferColNum = endColNum + 20;
   const bufferCol = numToCol(Math.min(bufferColNum, 16384));
-
   const bufferRowNum = Math.min(endRowNum + 20, 1048576);
 
   const anchorCell = `${sheetPrefix}$${adjustedStartCol}$${adjustedStartRow}`;
@@ -74,43 +81,28 @@ function buildDynamicFormula(ref: string, options?: DynamicOptions): string {
   return `=OFFSET(${anchorCell},0,0,COUNTA(${rowCountRange}),COUNTA(${colCountRange}))`;
 }
 
-interface HybridOptions {
-  fixedCols: number;
-  skipRows: number;
-}
+function buildHybridFormula(fixedRef: string, dynamicRef: string, skipRows: number): string {
+  const fixedParsed = parseRangeRef(fixedRef);
+  const dynParsed = parseRangeRef(dynamicRef);
+  if (!fixedParsed || !dynParsed) return `=${fixedRef.replace(/^=/, "")}`;
 
-function buildHybridFormula(ref: string, options: HybridOptions): string {
-  const parsed = parseRangeRef(ref);
-  if (!parsed) return `=${ref.replace(/^=/, "")}`;
+  const fixedSheet = fixedParsed.sheet ? `${fixedParsed.sheet}!` : "";
+  const dynSheet = dynParsed.sheet ? `${dynParsed.sheet}!` : "";
 
-  const { sheet, startCol, startRow, endCol, endRow } = parsed;
-  const sheetPrefix = sheet ? `${sheet}!` : "";
-  const fixedCols = Math.max(1, options.fixedCols);
-  const skipRows = options.skipRows || 0;
+  const fixedStartRow = parseInt(fixedParsed.startRow, 10) + skipRows;
+  const fixedPart = `${fixedSheet}$${fixedParsed.startCol}$${fixedStartRow}:$${fixedParsed.endCol}$${fixedParsed.endRow}`;
 
-  const startColNum = colToNum(startCol);
-  const endColNum = colToNum(endCol);
-  const totalCols = endColNum - startColNum + 1;
+  const dynStartRow = parseInt(dynParsed.startRow, 10) + skipRows;
+  const dynEndRow = parseInt(dynParsed.endRow, 10);
+  const dynEndColNum = colToNum(dynParsed.endCol);
 
-  if (fixedCols >= totalCols) {
-    return `=${ref.replace(/^=/, "")}`;
-  }
-
-  const startRowNum = parseInt(startRow, 10);
-  const endRowNum = parseInt(endRow, 10);
-  const adjustedStartRow = startRowNum + skipRows;
-
-  const fixedEndCol = numToCol(startColNum + fixedCols - 1);
-  const fixedPart = `${sheetPrefix}$${startCol}$${adjustedStartRow}:$${fixedEndCol}$${endRow}`;
-
-  const dynStartCol = numToCol(startColNum + fixedCols);
-  const bufferColNum = endColNum + 20;
+  const bufferColNum = dynEndColNum + 20;
   const bufferCol = numToCol(Math.min(bufferColNum, 16384));
-  const bufferRowNum = Math.min(endRowNum + 20, 1048576);
+  const bufferRowNum = Math.min(dynEndRow + 20, 1048576);
 
-  const dynAnchor = `${sheetPrefix}$${dynStartCol}$${adjustedStartRow}`;
-  const rowCountRange = `${sheetPrefix}$${dynStartCol}$${adjustedStartRow}:$${dynStartCol}$${bufferRowNum}`;
-  const colCountRange = `${sheetPrefix}$${dynStartCol}$${adjustedStartRow}:$${bufferCol}$${adjustedStartRow}`;
+  const dynAnchor = `${dynSheet}$${dynParsed.startCol}$${dynStartRow}`;
+  const rowCountRange = `${dynSheet}$${dynParsed.startCol}$${dynStartRow}:$${dynParsed.startCol}$${bufferRowNum}`;
+  const colCountRange = `${dynSheet}$${dynParsed.startCol}$${dynStartRow}:$${bufferCol}$${dynStartRow}`;
 
   return `=(${fixedPart},OFFSET(${dynAnchor},0,0,COUNTA(${rowCountRange}),COUNTA(${colCountRange})))`;
 }
@@ -137,13 +129,20 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
   const [name, setName] = useState(initialData?.name || "");
   const [refersTo, setRefersTo] = useState(initialData?.formula.replace(/^=/, "") || "");
   const [comment, setComment] = useState(initialData?.comment || "");
+
+  const savedFixedRef = initialData?.fixedRef || "";
+  const savedDynRef = initialData?.dynamicRef || "";
+
   const [type, setType] = useState<"fixed" | "dynamic" | "hybrid">(
-    initialData ? detectRangeType(initialData.formula) : "fixed"
+    initialData ? detectRangeType(initialData.formula, savedFixedRef, savedDynRef) : "fixed"
   );
   const [skipRows, setSkipRows] = useState(initialData?.skipRows || 0);
   const [skipCols, setSkipCols] = useState(initialData?.skipCols || 0);
-  const [fixedCols, setFixedCols] = useState(initialData?.fixedCols || 1);
-  const [picking, setPicking] = useState(false);
+
+  const [fixedRef, setFixedRef] = useState(savedFixedRef);
+  const [dynamicRef, setDynamicRef] = useState(savedDynRef);
+
+  const [picking, setPicking] = useState<false | "main" | "fixed" | "dynamic">(false);
   const unregRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
@@ -154,24 +153,30 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
     };
   }, []);
 
-  const togglePicker = async () => {
+  const stopPicking = async () => {
+    setPicking(false);
+    if (unregRef.current) {
+      await unregRef.current();
+      unregRef.current = null;
+    }
+  };
+
+  const startPicking = async (target: "main" | "fixed" | "dynamic") => {
     if (picking) {
+      await stopPicking();
+      if (picking === target) return;
+    }
+    setPicking(target);
+    try {
+      const unreg = await onSelectionChange((address) => {
+        if (target === "main") setRefersTo(address);
+        else if (target === "fixed") setFixedRef(address);
+        else if (target === "dynamic") setDynamicRef(address);
+      });
+      unregRef.current = unreg;
+    } catch (e) {
+      console.error("Failed to start picker", e);
       setPicking(false);
-      if (unregRef.current) {
-        await unregRef.current();
-        unregRef.current = null;
-      }
-    } else {
-      setPicking(true);
-      try {
-        const unreg = await onSelectionChange((address) => {
-          setRefersTo(address);
-        });
-        unregRef.current = unreg;
-      } catch (e) {
-        console.error("Failed to start picker", e);
-        setPicking(false);
-      }
     }
   };
 
@@ -191,29 +196,42 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
     return u.includes("OFFSET(") || u.includes("INDIRECT(") || u.includes("INDEX(");
   };
 
-  const canUseHybrid = !!parseRangeRef(refersTo);
-
   const handleSave = () => {
     const err = validateName(name);
     if (err) {
       setNameError(err);
       return;
     }
-    if (!refersTo.trim()) {
+
+    if (type === "hybrid") {
+      if (!fixedRef.trim()) {
+        setNameError("Fixed range is required for hybrid mode");
+        return;
+      }
+      if (!dynamicRef.trim()) {
+        setNameError("Dynamic range is required for hybrid mode");
+        return;
+      }
+      if (!parseRangeRef(fixedRef)) {
+        setNameError("Fixed range must be a valid range (e.g. Sheet1!$G$5:$H$21)");
+        return;
+      }
+      if (!parseRangeRef(dynamicRef)) {
+        setNameError("Dynamic range must be a valid range (e.g. Sheet1!$P$5:$Q$21)");
+        return;
+      }
+    } else if (!refersTo.trim()) {
       setNameError("Reference is required");
       return;
     }
-    if (type === "hybrid" && !canUseHybrid) {
-      setNameError("Hybrid mode requires a simple range reference (e.g. Sheet1!$A$1:$D$20)");
-      return;
-    }
+
     setNameError("");
 
     let finalRef: string;
     if (type === "dynamic" && !isDynamicFormula(refersTo)) {
       finalRef = buildDynamicFormula(refersTo, { skipRows, skipCols });
-    } else if (type === "hybrid" && !isDynamicFormula(refersTo)) {
-      finalRef = buildHybridFormula(refersTo, { fixedCols, skipRows });
+    } else if (type === "hybrid") {
+      finalRef = buildHybridFormula(fixedRef, dynamicRef, skipRows);
     } else {
       finalRef = `=${refersTo.replace(/^=/, "")}`;
     }
@@ -225,22 +243,38 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
       comment,
       skipRows: (type === "dynamic" || type === "hybrid") ? skipRows : undefined,
       skipCols: type === "dynamic" ? skipCols : undefined,
-      fixedCols: type === "hybrid" ? fixedCols : undefined,
+      fixedRef: type === "hybrid" ? fixedRef : undefined,
+      dynamicRef: type === "hybrid" ? dynamicRef : undefined,
     });
   };
 
   const getPreviewFormula = () => {
-    if (!refersTo.trim()) return null;
-    if (isDynamicFormula(refersTo)) return null;
-    if (type === "dynamic") return buildDynamicFormula(refersTo, { skipRows, skipCols });
-    if (type === "hybrid") return buildHybridFormula(refersTo, { fixedCols, skipRows });
+    if (type === "dynamic" && refersTo.trim() && !isDynamicFormula(refersTo)) {
+      return buildDynamicFormula(refersTo, { skipRows, skipCols });
+    }
+    if (type === "hybrid" && fixedRef.trim() && dynamicRef.trim()) {
+      if (parseRangeRef(fixedRef) && parseRangeRef(dynamicRef)) {
+        return buildHybridFormula(fixedRef, dynamicRef, skipRows);
+      }
+    }
     return null;
   };
 
   const previewFormula = getPreviewFormula();
 
-  const parsedRef = parseRangeRef(refersTo);
-  const totalColsInRef = parsedRef ? colToNum(parsedRef.endCol) - colToNum(parsedRef.startCol) + 1 : 0;
+  const pickerButton = (target: "main" | "fixed" | "dynamic", testId: string) => (
+    <Button
+      type="button"
+      variant={picking === target ? "default" : "outline"}
+      size="icon"
+      className={cn("shrink-0", picking === target ? "animate-pulse" : "")}
+      onClick={() => picking === target ? stopPicking() : startPicking(target)}
+      title="Pick range from Excel"
+      data-testid={testId}
+    >
+      <MousePointerClick className="w-4 h-4" />
+    </Button>
+  );
 
   return (
     <div className="flex flex-col h-full bg-background p-4 animate-in slide-in-from-right-4 duration-300">
@@ -267,40 +301,11 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
           )}
         </div>
 
-        <div className="space-y-2">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Refers To</Label>
-          <div className="flex gap-2">
-            <Input
-              value={refersTo}
-              onChange={e => setRefersTo(e.target.value)}
-              className={cn("font-mono text-xs", picking && "border-primary ring-1 ring-primary/20 bg-primary/5")}
-              placeholder="Sheet1!$A$1:$B$10"
-              data-testid="input-refers-to"
-            />
-            <Button
-              type="button"
-              variant={picking ? "default" : "outline"}
-              size="icon"
-              className={cn("shrink-0", picking ? "animate-pulse" : "")}
-              onClick={togglePicker}
-              title="Pick range from Excel"
-              data-testid="button-range-picker"
-            >
-              <MousePointerClick className="w-4 h-4" />
-            </Button>
-          </div>
-          {picking && (
-            <p className="text-[10px] text-primary font-medium animate-pulse">
-              Select cells in Excel to update the reference...
-            </p>
-          )}
-        </div>
-
         <div className="space-y-3">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Range Type</Label>
           <RadioGroup
             value={type}
-            onValueChange={(v) => setType(v as "fixed" | "dynamic" | "hybrid")}
+            onValueChange={(v) => { setType(v as "fixed" | "dynamic" | "hybrid"); setNameError(""); }}
             className="grid grid-cols-3 gap-2"
           >
             <div className={cn(
@@ -335,11 +340,10 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
 
             <div className={cn(
               "flex items-center space-x-2 border rounded-md p-2.5 transition-colors cursor-pointer",
-              type === "hybrid" ? "bg-accent/50 border-primary/30" : "bg-card",
-              !canUseHybrid && "opacity-50"
+              type === "hybrid" ? "bg-accent/50 border-primary/30" : "bg-card"
             )}>
-              <RadioGroupItem value="hybrid" id="hybrid" data-testid="radio-hybrid" disabled={!canUseHybrid} />
-              <Label htmlFor="hybrid" className={cn("cursor-pointer", !canUseHybrid && "cursor-not-allowed")}>
+              <RadioGroupItem value="hybrid" id="hybrid" data-testid="radio-hybrid" />
+              <Label htmlFor="hybrid" className="cursor-pointer">
                 <div className="flex items-center font-semibold text-xs mb-0.5">
                   <Columns className="w-3 h-3 mr-1" /> Hybrid
                 </div>
@@ -349,90 +353,143 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
               </Label>
             </div>
           </RadioGroup>
-
-          {type === "dynamic" && (
-            <div className="bg-muted/30 border rounded-md p-3 space-y-3">
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Skip Options</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="skipRows" className="text-[11px] text-muted-foreground">Skip rows from top</Label>
-                  <Input
-                    id="skipRows"
-                    type="number"
-                    min={0}
-                    value={skipRows}
-                    onChange={e => setSkipRows(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="h-8 text-xs font-mono"
-                    data-testid="input-skip-rows"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="skipCols" className="text-[11px] text-muted-foreground">Skip columns from left</Label>
-                  <Input
-                    id="skipCols"
-                    type="number"
-                    min={0}
-                    value={skipCols}
-                    onChange={e => setSkipCols(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="h-8 text-xs font-mono"
-                    data-testid="input-skip-cols"
-                  />
-                </div>
-              </div>
-              <p className="text-[10px] text-muted-foreground leading-snug">
-                Exclude header rows or label columns. The range starts counting after the skipped rows/columns.
-              </p>
-            </div>
-          )}
-
-          {type === "hybrid" && (
-            <div className="bg-muted/30 border rounded-md p-3 space-y-3">
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Hybrid Settings</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="fixedCols" className="text-[11px] text-muted-foreground">Fixed columns (from left)</Label>
-                  <Input
-                    id="fixedCols"
-                    type="number"
-                    min={1}
-                    max={totalColsInRef > 1 ? totalColsInRef - 1 : 99}
-                    value={fixedCols}
-                    onChange={e => setFixedCols(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="h-8 text-xs font-mono"
-                    data-testid="input-fixed-cols"
-                  />
-                  {totalColsInRef > 0 && (
-                    <p className="text-[9px] text-muted-foreground">
-                      {fixedCols} of {totalColsInRef} columns locked
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="hybridSkipRows" className="text-[11px] text-muted-foreground">Skip rows from top</Label>
-                  <Input
-                    id="hybridSkipRows"
-                    type="number"
-                    min={0}
-                    value={skipRows}
-                    onChange={e => setSkipRows(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="h-8 text-xs font-mono"
-                    data-testid="input-hybrid-skip-rows"
-                  />
-                </div>
-              </div>
-              <p className="text-[10px] text-muted-foreground leading-snug">
-                The first {fixedCols} column{fixedCols > 1 ? "s" : ""} will stay fixed. The remaining columns will expand dynamically as new data is added to the right.
-              </p>
-            </div>
-          )}
-
-          {previewFormula && (
-            <div className="bg-muted/50 border rounded-md p-2">
-              <p className="text-[10px] text-muted-foreground mb-1 font-medium">Generated formula:</p>
-              <p className="text-[11px] font-mono break-all text-foreground">{previewFormula}</p>
-            </div>
-          )}
         </div>
+
+        {(type === "fixed" || type === "dynamic") && (
+          <div className="space-y-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Refers To</Label>
+            <div className="flex gap-2">
+              <Input
+                value={refersTo}
+                onChange={e => setRefersTo(e.target.value)}
+                className={cn("font-mono text-xs", picking === "main" && "border-primary ring-1 ring-primary/20 bg-primary/5")}
+                placeholder="Sheet1!$A$1:$B$10"
+                data-testid="input-refers-to"
+              />
+              {pickerButton("main", "button-range-picker")}
+            </div>
+            {picking === "main" && (
+              <p className="text-[10px] text-primary font-medium animate-pulse">
+                Select cells in Excel to update the reference...
+              </p>
+            )}
+          </div>
+        )}
+
+        {type === "dynamic" && (
+          <div className="bg-muted/30 border rounded-md p-3 space-y-3">
+            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Skip Options</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="skipRows" className="text-[11px] text-muted-foreground">Skip rows from top</Label>
+                <Input
+                  id="skipRows"
+                  type="number"
+                  min={0}
+                  value={skipRows}
+                  onChange={e => setSkipRows(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="h-8 text-xs font-mono"
+                  data-testid="input-skip-rows"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="skipCols" className="text-[11px] text-muted-foreground">Skip columns from left</Label>
+                <Input
+                  id="skipCols"
+                  type="number"
+                  min={0}
+                  value={skipCols}
+                  onChange={e => setSkipCols(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="h-8 text-xs font-mono"
+                  data-testid="input-skip-cols"
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-snug">
+              Exclude header rows or label columns. The range starts counting after the skipped rows/columns.
+            </p>
+          </div>
+        )}
+
+        {type === "hybrid" && (
+          <div className="space-y-4">
+            <div className="bg-muted/30 border rounded-md p-3 space-y-3">
+              <div className="flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+                <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Fixed Columns</p>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-snug">
+                Select the columns that should stay locked (e.g. your label or identifier columns).
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={fixedRef}
+                  onChange={e => setFixedRef(e.target.value)}
+                  className={cn("font-mono text-xs", picking === "fixed" && "border-primary ring-1 ring-primary/20 bg-primary/5")}
+                  placeholder="e.g. Sheet1!$G$3:$H$21"
+                  data-testid="input-fixed-ref"
+                />
+                {pickerButton("fixed", "button-fixed-picker")}
+              </div>
+              {picking === "fixed" && (
+                <p className="text-[10px] text-primary font-medium animate-pulse">
+                  Select the fixed columns in Excel...
+                </p>
+              )}
+            </div>
+
+            <div className="bg-muted/30 border rounded-md p-3 space-y-3">
+              <div className="flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-muted-foreground" />
+                <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Dynamic Columns</p>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-snug">
+                Select the starting area for columns that should expand dynamically. New columns/rows added next to these will be included automatically.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={dynamicRef}
+                  onChange={e => setDynamicRef(e.target.value)}
+                  className={cn("font-mono text-xs", picking === "dynamic" && "border-primary ring-1 ring-primary/20 bg-primary/5")}
+                  placeholder="e.g. Sheet1!$P$3:$Q$21"
+                  data-testid="input-dynamic-ref"
+                />
+                {pickerButton("dynamic", "button-dynamic-picker")}
+              </div>
+              {picking === "dynamic" && (
+                <p className="text-[10px] text-primary font-medium animate-pulse">
+                  Select the dynamic columns in Excel...
+                </p>
+              )}
+            </div>
+
+            <div className="bg-muted/30 border rounded-md p-3 space-y-3">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Options</p>
+              <div className="space-y-1">
+                <Label htmlFor="hybridSkipRows" className="text-[11px] text-muted-foreground">Skip rows from top</Label>
+                <Input
+                  id="hybridSkipRows"
+                  type="number"
+                  min={0}
+                  value={skipRows}
+                  onChange={e => setSkipRows(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="h-8 text-xs font-mono"
+                  data-testid="input-hybrid-skip-rows"
+                />
+                <p className="text-[10px] text-muted-foreground leading-snug">
+                  Exclude header rows from both fixed and dynamic parts.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {previewFormula && (
+          <div className="bg-muted/50 border rounded-md p-2">
+            <p className="text-[10px] text-muted-foreground mb-1 font-medium">Generated formula:</p>
+            <p className="text-[11px] font-mono break-all text-foreground">{previewFormula}</p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="comment" className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Description</Label>
