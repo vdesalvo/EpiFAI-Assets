@@ -39,9 +39,7 @@ function buildDynamicFormula(ref: string): string {
   const { sheet, startCol, startRow, endCol } = parsed;
   const sheetPrefix = sheet ? `${sheet}!` : "";
 
-  const colCount = colToNum(endCol) - colToNum(startCol) + 1;
-
-  return `=OFFSET(${sheetPrefix}$${startCol}$${startRow},0,0,COUNTA(${sheetPrefix}$${startCol}:$${startCol}),${colCount})`;
+  return `=OFFSET(${sheetPrefix}$${startCol}$${startRow},0,0,COUNTA(${sheetPrefix}$${startCol}$${startRow}:$${startCol}$1048576),COUNTA(${sheetPrefix}$${startCol}$${startRow}:$XFD$${startRow}))`;
 }
 
 function colToNum(col: string): number {
