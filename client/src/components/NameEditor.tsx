@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Grid, ArrowDownUp, MousePointerClick, Columns, Lock, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ interface NameEditorProps {
     skipCols?: number;
     fixedRef?: string;
     dynamicRef?: string;
+    lastColOnly?: boolean;
   }) => void;
   onCancel: () => void;
 }
@@ -49,7 +51,7 @@ interface DynamicOptions {
   skipCols: number;
 }
 
-function buildDynamicFormula(ref: string, options?: DynamicOptions): string {
+function buildDynamicFormula(ref: string, options?: DynamicOptions & { lastColOnly?: boolean }): string {
   const parsed = parseRangeRef(ref);
   if (!parsed) return `=${ref.replace(/^=/, "")}`;
 
@@ -78,10 +80,14 @@ function buildDynamicFormula(ref: string, options?: DynamicOptions): string {
   const rowCountRange = `${sheetPrefix}$${adjustedStartCol}$${adjustedStartRow}:$${adjustedStartCol}$${bufferRowNum}`;
   const colCountRange = `${sheetPrefix}$${adjustedStartCol}$${adjustedStartRow}:$${bufferCol}$${adjustedStartRow}`;
 
+  if (options?.lastColOnly) {
+    return `=OFFSET(${anchorCell},0,COUNTA(${colCountRange})-1,COUNTA(${rowCountRange}),1)`;
+  }
+
   return `=OFFSET(${anchorCell},0,0,COUNTA(${rowCountRange}),COUNTA(${colCountRange}))`;
 }
 
-function buildHybridFormula(fixedRef: string, dynamicRef: string, skipRows: number): string {
+function buildHybridFormula(fixedRef: string, dynamicRef: string, skipRows: number, lastColOnly = false): string {
   const fixedParsed = parseRangeRef(fixedRef);
   const dynParsed = parseRangeRef(dynamicRef);
   if (!fixedParsed || !dynParsed) return `=${fixedRef.replace(/^=/, "")}`;
@@ -103,6 +109,10 @@ function buildHybridFormula(fixedRef: string, dynamicRef: string, skipRows: numb
   const dynAnchor = `${dynSheet}$${dynParsed.startCol}$${dynStartRow}`;
   const rowCountRange = `${dynSheet}$${dynParsed.startCol}$${dynStartRow}:$${dynParsed.startCol}$${bufferRowNum}`;
   const colCountRange = `${dynSheet}$${dynParsed.startCol}$${dynStartRow}:$${bufferCol}$${dynStartRow}`;
+
+  if (lastColOnly) {
+    return `=(${fixedPart},OFFSET(${dynAnchor},0,COUNTA(${colCountRange})-1,COUNTA(${rowCountRange}),1))`;
+  }
 
   return `=(${fixedPart},OFFSET(${dynAnchor},0,0,COUNTA(${rowCountRange}),COUNTA(${colCountRange})))`;
 }
@@ -141,6 +151,7 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
 
   const [fixedRef, setFixedRef] = useState(savedFixedRef);
   const [dynamicRef, setDynamicRef] = useState(savedDynRef);
+  const [lastColOnly, setLastColOnly] = useState(initialData?.lastColOnly || false);
 
   const [picking, setPicking] = useState<false | "main" | "fixed" | "dynamic">(false);
   const unregRef = useRef<(() => Promise<void>) | null>(null);
@@ -229,9 +240,9 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
 
     let finalRef: string;
     if (type === "dynamic" && !isDynamicFormula(refersTo)) {
-      finalRef = buildDynamicFormula(refersTo, { skipRows, skipCols });
+      finalRef = buildDynamicFormula(refersTo, { skipRows, skipCols, lastColOnly });
     } else if (type === "hybrid") {
-      finalRef = buildHybridFormula(fixedRef, dynamicRef, skipRows);
+      finalRef = buildHybridFormula(fixedRef, dynamicRef, skipRows, lastColOnly);
     } else {
       finalRef = `=${refersTo.replace(/^=/, "")}`;
     }
@@ -245,16 +256,17 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
       skipCols: type === "dynamic" ? skipCols : undefined,
       fixedRef: type === "hybrid" ? fixedRef : undefined,
       dynamicRef: type === "hybrid" ? dynamicRef : undefined,
+      lastColOnly: (type === "dynamic" || type === "hybrid") ? lastColOnly : undefined,
     });
   };
 
   const getPreviewFormula = () => {
     if (type === "dynamic" && refersTo.trim() && !isDynamicFormula(refersTo)) {
-      return buildDynamicFormula(refersTo, { skipRows, skipCols });
+      return buildDynamicFormula(refersTo, { skipRows, skipCols, lastColOnly });
     }
     if (type === "hybrid" && fixedRef.trim() && dynamicRef.trim()) {
       if (parseRangeRef(fixedRef) && parseRangeRef(dynamicRef)) {
-        return buildHybridFormula(fixedRef, dynamicRef, skipRows);
+        return buildHybridFormula(fixedRef, dynamicRef, skipRows, lastColOnly);
       }
     }
     return null;
@@ -408,6 +420,18 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
             <p className="text-[10px] text-muted-foreground leading-snug">
               Exclude header rows or label columns. The range starts counting after the skipped rows/columns.
             </p>
+            <div className="flex items-center justify-between pt-1">
+              <div>
+                <Label htmlFor="lastColDyn" className="text-[11px] text-muted-foreground">Last column only</Label>
+                <p className="text-[9px] text-muted-foreground leading-snug">Include only the rightmost column of the dynamic range</p>
+              </div>
+              <Switch
+                id="lastColDyn"
+                checked={lastColOnly}
+                onCheckedChange={setLastColOnly}
+                data-testid="switch-last-col-dynamic"
+              />
+            </div>
           </div>
         )}
 
@@ -479,6 +503,18 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
                 <p className="text-[10px] text-muted-foreground leading-snug">
                   Exclude header rows from both fixed and dynamic parts.
                 </p>
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <div>
+                  <Label htmlFor="lastColHybrid" className="text-[11px] text-muted-foreground">Last column only</Label>
+                  <p className="text-[9px] text-muted-foreground leading-snug">Include only the rightmost column of the dynamic range</p>
+                </div>
+                <Switch
+                  id="lastColHybrid"
+                  checked={lastColOnly}
+                  onCheckedChange={setLastColOnly}
+                  data-testid="switch-last-col-hybrid"
+                />
               </div>
             </div>
           </div>
