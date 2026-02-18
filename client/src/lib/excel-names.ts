@@ -245,25 +245,35 @@ export async function getSelection(): Promise<string> {
 }
 
 export async function onSelectionChange(cb: (address: string) => void): Promise<() => Promise<void>> {
-  let handler: any;
-  await Excel.run(async (ctx) => {
-    const sheet = ctx.workbook.worksheets.getActiveWorksheet();
-    sheet.load("name");
-    await ctx.sync();
-    const sheetName = sheet.name;
-    handler = sheet.onSelectionChanged.add((e: any) => {
-      const addr = e.address || "";
-      const fullAddr = addr.includes("!") ? addr : `${sheetName}!${addr}`;
-      cb(fullAddr);
-    });
-    await ctx.sync();
-  });
-  return async () => {
-    if (handler) {
-      await Excel.run(async (ctx) => {
-        handler.remove();
-        await ctx.sync();
-      });
+  let active = true;
+  let lastAddr = "";
+
+  const poll = async () => {
+    while (active) {
+      try {
+        const addr = await Excel.run(async (ctx) => {
+          const sheet = ctx.workbook.worksheets.getActiveWorksheet();
+          const range = ctx.workbook.getSelectedRange();
+          sheet.load("name");
+          range.load("address");
+          await ctx.sync();
+          const cellRef = range.address.includes("!") ? range.address.split("!")[1] : range.address;
+          return `${sheet.name}!${cellRef}`;
+        });
+        if (addr !== lastAddr) {
+          lastAddr = addr;
+          cb(addr);
+        }
+      } catch (e) {
+        console.error("Selection poll error:", e);
+      }
+      await new Promise(r => setTimeout(r, 500));
     }
+  };
+
+  poll();
+
+  return async () => {
+    active = false;
   };
 }

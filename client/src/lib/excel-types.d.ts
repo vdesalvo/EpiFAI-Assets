@@ -30,6 +30,7 @@ declare namespace Excel {
     activate(): void;
     getRange(address?: string): Range;
     onSelectionChanged: EventHandlers;
+    load(propertyNames?: string | string[]): void;
   }
 
   interface NamedItemCollection {
