@@ -1,6 +1,21 @@
 /// <reference path="./excel-types.d.ts" />
 
 export const EPIFAI_TAG = "[Epifai]";
+const SKIP_TAG_RE = /\[skip:(\d+),(\d+)\]/;
+
+export function parseSkipTag(comment: string): { skipRows: number; skipCols: number } {
+  const m = comment.match(SKIP_TAG_RE);
+  return m ? { skipRows: parseInt(m[1], 10), skipCols: parseInt(m[2], 10) } : { skipRows: 0, skipCols: 0 };
+}
+
+export function buildSkipTag(skipRows: number, skipCols: number): string {
+  if (skipRows === 0 && skipCols === 0) return "";
+  return `[skip:${skipRows},${skipCols}]`;
+}
+
+export function stripMetaTags(comment: string): string {
+  return comment.replace(EPIFAI_TAG, "").replace(SKIP_TAG_RE, "").trim();
+}
 
 export interface ExcelName {
   name: string;
@@ -14,12 +29,16 @@ export interface ExcelName {
   values?: any[][];
   status: "valid" | "broken" | "unknown";
   origin: "epifai" | "excel";
+  skipRows: number;
+  skipCols: number;
 }
 
 export interface UpdateNameParams {
   newName?: string;
   refersTo?: string;
   comment?: string;
+  skipRows?: number;
+  skipCols?: number;
 }
 
 export async function getAllNames(): Promise<ExcelName[]> {
@@ -50,7 +69,8 @@ export async function getAllNames(): Promise<ExcelName[]> {
 
         const rawComment = item.comment || "";
         const isEpifai = rawComment.includes(EPIFAI_TAG);
-        const cleanComment = rawComment.replace(EPIFAI_TAG, "").trim();
+        const skip = parseSkipTag(rawComment);
+        const cleanComment = stripMetaTags(rawComment);
 
         results.push({
           name: item.name,
@@ -64,6 +84,8 @@ export async function getAllNames(): Promise<ExcelName[]> {
           values,
           status,
           origin: isEpifai ? "epifai" : "excel",
+          skipRows: skip.skipRows,
+          skipCols: skip.skipCols,
         });
       }
 
@@ -84,7 +106,8 @@ export async function getAllNames(): Promise<ExcelName[]> {
           }
           const rawComment2 = item.comment || "";
           const isEpifai2 = rawComment2.includes(EPIFAI_TAG);
-          const cleanComment2 = rawComment2.replace(EPIFAI_TAG, "").trim();
+          const skip2 = parseSkipTag(rawComment2);
+          const cleanComment2 = stripMetaTags(rawComment2);
 
           results.push({
             name: item.name,
@@ -97,6 +120,8 @@ export async function getAllNames(): Promise<ExcelName[]> {
             address,
             status,
             origin: isEpifai2 ? "epifai" : "excel",
+            skipRows: skip2.skipRows,
+            skipCols: skip2.skipCols,
           });
         }
       }
@@ -109,16 +134,16 @@ export async function getAllNames(): Promise<ExcelName[]> {
     if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
        console.warn("Mocking Excel Data for Development");
        return [
-         { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid", origin: "epifai" as const },
-         { name: "Expenses_Q1", type: "Range", value: 500, formula: "=Sheet1!$B$2", comment: "", visible: true, scope: "Workbook", address: "Sheet1!$B$2", status: "valid", origin: "excel" as const },
-         { name: "Broken_Ref", type: "Range", value: "#REF!", formula: "=Sheet1!$Z$99", comment: "Old ref", visible: true, scope: "Workbook", address: "", status: "broken", origin: "excel" as const }
+         { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid", origin: "epifai" as const, skipRows: 0, skipCols: 0 },
+         { name: "Expenses_Q1", type: "Range", value: 500, formula: "=Sheet1!$B$2", comment: "", visible: true, scope: "Workbook", address: "Sheet1!$B$2", status: "valid", origin: "excel" as const, skipRows: 0, skipCols: 0 },
+         { name: "Broken_Ref", type: "Range", value: "#REF!", formula: "=Sheet1!$Z$99", comment: "Old ref", visible: true, scope: "Workbook", address: "", status: "broken", origin: "excel" as const, skipRows: 0, skipCols: 0 }
        ];
     }
     throw error;
   }
 }
 
-export async function addName(name: string, formula: string, comment = "", scope = "Workbook"): Promise<void> {
+export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0): Promise<void> {
   return Excel.run(async (ctx) => {
     const raw = formula.replace(/^=/, "");
     const hasFunction = /[A-Z]+\(/.test(raw.toUpperCase());
@@ -149,8 +174,9 @@ export async function addName(name: string, formula: string, comment = "", scope
         : ctx.workbook.worksheets.getItem(scope).names.add(name, range);
     }
 
-    const taggedComment = comment ? `${comment} ${EPIFAI_TAG}` : EPIFAI_TAG;
-    item.comment = taggedComment;
+    const skipTag = buildSkipTag(skipRows, skipCols);
+    const parts = [comment, skipTag, EPIFAI_TAG].filter(Boolean);
+    item.comment = parts.join(" ");
     await ctx.sync();
   });
 }
@@ -161,13 +187,17 @@ export async function updateName(name: string, updates: UpdateNameParams): Promi
     item.load("name,formula,comment");
     await ctx.sync();
 
-    const hadEpifaiTag = (item.comment || "").includes(EPIFAI_TAG);
+    const oldRaw = item.comment || "";
+    const hadEpifaiTag = oldRaw.includes(EPIFAI_TAG);
     
     if (updates.refersTo) item.formula = updates.refersTo;
-    if (updates.comment !== undefined) {
-      const cleanNew = updates.comment.replace(EPIFAI_TAG, "").trim();
-      item.comment = hadEpifaiTag ? (cleanNew ? `${cleanNew} ${EPIFAI_TAG}` : EPIFAI_TAG) : cleanNew;
-    }
+
+    const userComment = updates.comment !== undefined ? updates.comment : stripMetaTags(oldRaw);
+    const skipR = updates.skipRows !== undefined ? updates.skipRows : parseSkipTag(oldRaw).skipRows;
+    const skipC = updates.skipCols !== undefined ? updates.skipCols : parseSkipTag(oldRaw).skipCols;
+    const skipTag = buildSkipTag(skipR, skipC);
+    const parts = [userComment, skipTag, hadEpifaiTag ? EPIFAI_TAG : ""].filter(Boolean);
+    item.comment = parts.join(" ");
     
     if (updates.newName && updates.newName !== item.name) {
       const f = updates.refersTo || item.formula;

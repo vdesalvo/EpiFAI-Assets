@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 interface NameEditorProps {
   initialData?: ExcelName;
-  onSave: (data: { name: string; refersTo: string; comment: string; newName?: string }) => void;
+  onSave: (data: { name: string; refersTo: string; comment: string; newName?: string; skipRows?: number; skipCols?: number }) => void;
   onCancel: () => void;
 }
 
@@ -95,8 +95,8 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
   const [type, setType] = useState<"fixed" | "dynamic">(
     initialData ? (detectIsDynamic(initialData.formula) ? "dynamic" : "fixed") : "fixed"
   );
-  const [skipRows, setSkipRows] = useState(0);
-  const [skipCols, setSkipCols] = useState(0);
+  const [skipRows, setSkipRows] = useState(initialData?.skipRows || 0);
+  const [skipCols, setSkipCols] = useState(initialData?.skipCols || 0);
   const [picking, setPicking] = useState(false);
   const unregRef = useRef<(() => Promise<void>) | null>(null);
 
@@ -163,7 +163,9 @@ export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
       name: initialData?.name || name,
       newName: name !== initialData?.name ? name : undefined,
       refersTo: finalRef,
-      comment
+      comment,
+      skipRows: type === "dynamic" ? skipRows : undefined,
+      skipCols: type === "dynamic" ? skipCols : undefined,
     });
   };
 
