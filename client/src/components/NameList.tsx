@@ -142,7 +142,7 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDel
                   </div>
                   
                   <div className="text-xs font-mono text-muted-foreground truncate mb-1 bg-muted/30 p-1 rounded">
-                    {n.formula.replace(/^=/, "")}
+                    {dynamic ? n.formula.replace(/^=/, "") : (n.address || n.formula.replace(/^=/, ""))}
                   </div>
                   {dynamic && n.address && (
                     <div className="text-[10px] text-muted-foreground mb-1">
