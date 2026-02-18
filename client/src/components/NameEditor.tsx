@@ -38,9 +38,12 @@ function buildDynamicFormula(ref: string): string {
 
   const { sheet, startCol, startRow, endCol } = parsed;
   const sheetPrefix = sheet ? `${sheet}!` : "";
-  const colCount = colToNum(endCol) - colToNum(startCol) + 1;
 
-  return `=OFFSET(${sheetPrefix}$${startCol}$${startRow},0,0,COUNTA(${sheetPrefix}$${startCol}$${startRow}:$${startCol}$1048576),${colCount})`;
+  const endColNum = colToNum(endCol);
+  const bufferColNum = endColNum + 20;
+  const bufferCol = numToCol(Math.min(bufferColNum, 16384));
+
+  return `=OFFSET(${sheetPrefix}$${startCol}$${startRow},0,0,COUNTA(${sheetPrefix}$${startCol}$${startRow}:$${startCol}$1048576),COUNTA(${sheetPrefix}$${startCol}$${startRow}:$${bufferCol}$${startRow}))`;
 }
 
 function colToNum(col: string): number {
@@ -49,6 +52,16 @@ function colToNum(col: string): number {
     num = num * 26 + (col.charCodeAt(i) - 64);
   }
   return num;
+}
+
+function numToCol(num: number): string {
+  let col = "";
+  while (num > 0) {
+    const rem = (num - 1) % 26;
+    col = String.fromCharCode(65 + rem) + col;
+    num = Math.floor((num - 1) / 26);
+  }
+  return col;
 }
 
 export function NameEditor({ initialData, onSave, onCancel }: NameEditorProps) {
