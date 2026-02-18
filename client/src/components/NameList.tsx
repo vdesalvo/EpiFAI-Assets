@@ -28,18 +28,20 @@ interface NameListProps {
 
 export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDeleteName }: NameListProps) {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "valid" | "broken" | "unused">("all");
+  const [filter, setFilter] = useState<"all" | "epifai" | "excel" | "broken">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const stats = {
     total: names.length,
-    valid: names.filter(n => n.status === "valid").length,
+    epifai: names.filter(n => n.origin === "epifai").length,
+    excel: names.filter(n => n.origin === "excel").length,
     broken: names.filter(n => n.status === "broken").length,
-    unused: names.filter(n => false).length // "unused" logic wasn't fully implemented in service, placeholder
   };
 
   const filteredNames = names.filter(n => {
-    if (filter !== "all" && n.status !== filter) return false;
+    if (filter === "epifai" && n.origin !== "epifai") return false;
+    if (filter === "excel" && n.origin !== "excel") return false;
+    if (filter === "broken" && n.status !== "broken") return false;
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -68,24 +70,28 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDel
     <div className="flex flex-col h-full bg-background">
       {/* Search & Filters */}
       <div className="p-3 border-b space-y-3 bg-muted/20">
-        <div className="flex gap-2 p-1 bg-muted rounded-lg">
-          {(["all", "valid", "broken"] as const).map(key => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className={cn(
-                "flex-1 py-1 px-2 rounded-md text-xs font-medium transition-all",
-                filter === key 
-                  ? "bg-background text-foreground shadow-sm ring-1 ring-black/5" 
-                  : "text-muted-foreground hover:bg-background/50"
-              )}
-            >
-              <span className="block text-sm font-bold">
-                {key === 'all' ? stats.total : stats[key]}
-              </span>
-              <span className="uppercase text-[10px] opacity-70">{key}</span>
-            </button>
-          ))}
+        <div className="flex gap-1 p-1 bg-muted rounded-lg">
+          {(["all", "epifai", "excel", "broken"] as const).map(key => {
+            const labels: Record<string, string> = { all: "ALL", epifai: "EPIFAI", excel: "EXCEL", broken: "BROKEN" };
+            return (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                data-testid={`filter-${key}`}
+                className={cn(
+                  "flex-1 py-1 px-1.5 rounded-md text-xs font-medium transition-all",
+                  filter === key 
+                    ? "bg-background text-foreground shadow-sm ring-1 ring-black/5" 
+                    : "text-muted-foreground hover:bg-background/50"
+                )}
+              >
+                <span className="block text-sm font-bold">
+                  {key === 'all' ? stats.total : stats[key]}
+                </span>
+                <span className="uppercase text-[10px] opacity-70">{labels[key]}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="relative">
@@ -129,8 +135,19 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDel
               >
                 <div className="p-3">
                   <div className="flex items-center justify-between gap-1 mb-1 flex-wrap">
-                    <div className="font-semibold text-sm truncate pr-2 text-foreground/90">
-                      {n.name}
+                    <div className="flex items-center gap-1.5 truncate pr-2">
+                      <span className="font-semibold text-sm truncate text-foreground/90">
+                        {n.name}
+                      </span>
+                      {n.origin === "epifai" ? (
+                        <span className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/15 text-primary border border-primary/20 shrink-0" data-testid={`origin-epifai-${n.name}`}>
+                          Epifai
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/50 shrink-0" data-testid={`origin-excel-${n.name}`}>
+                          Excel
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <Badge variant={dynamic ? "info" : "secondary"} className="text-[10px] h-5 px-1.5">

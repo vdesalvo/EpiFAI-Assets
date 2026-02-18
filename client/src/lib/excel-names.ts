@@ -1,5 +1,7 @@
 /// <reference path="./excel-types.d.ts" />
 
+export const EPIFAI_TAG = "[Epifai]";
+
 export interface ExcelName {
   name: string;
   type: string;
@@ -11,6 +13,7 @@ export interface ExcelName {
   address: string;
   values?: any[][];
   status: "valid" | "broken" | "unknown";
+  origin: "epifai" | "excel";
 }
 
 export interface UpdateNameParams {
@@ -45,17 +48,22 @@ export async function getAllNames(): Promise<ExcelName[]> {
           status = "broken";
         }
 
+        const rawComment = item.comment || "";
+        const isEpifai = rawComment.includes(EPIFAI_TAG);
+        const cleanComment = rawComment.replace(EPIFAI_TAG, "").trim();
+
         results.push({
           name: item.name,
           type: item.type,
           value: item.value,
           formula: item.formula,
-          comment: item.comment || "",
+          comment: cleanComment,
           visible: item.visible,
           scope: "Workbook",
           address,
           values,
           status,
+          origin: isEpifai ? "epifai" : "excel",
         });
       }
 
@@ -74,16 +82,21 @@ export async function getAllNames(): Promise<ExcelName[]> {
           } catch {
             status = "broken";
           }
+          const rawComment2 = item.comment || "";
+          const isEpifai2 = rawComment2.includes(EPIFAI_TAG);
+          const cleanComment2 = rawComment2.replace(EPIFAI_TAG, "").trim();
+
           results.push({
             name: item.name,
             type: item.type,
             value: item.value,
             formula: item.formula,
-            comment: item.comment || "",
+            comment: cleanComment2,
             visible: item.visible,
             scope: sheet.name,
             address,
             status,
+            origin: isEpifai2 ? "epifai" : "excel",
           });
         }
       }
@@ -96,9 +109,9 @@ export async function getAllNames(): Promise<ExcelName[]> {
     if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
        console.warn("Mocking Excel Data for Development");
        return [
-         { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid" },
-         { name: "Expenses_Q1", type: "Range", value: 500, formula: "=Sheet1!$B$2", comment: "", visible: true, scope: "Workbook", address: "Sheet1!$B$2", status: "valid" },
-         { name: "Broken_Ref", type: "Range", value: "#REF!", formula: "=Sheet1!$Z$99", comment: "Old ref", visible: true, scope: "Workbook", address: "", status: "broken" }
+         { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid", origin: "epifai" as const },
+         { name: "Expenses_Q1", type: "Range", value: 500, formula: "=Sheet1!$B$2", comment: "", visible: true, scope: "Workbook", address: "Sheet1!$B$2", status: "valid", origin: "excel" as const },
+         { name: "Broken_Ref", type: "Range", value: "#REF!", formula: "=Sheet1!$Z$99", comment: "Old ref", visible: true, scope: "Workbook", address: "", status: "broken", origin: "excel" as const }
        ];
     }
     throw error;
@@ -136,7 +149,8 @@ export async function addName(name: string, formula: string, comment = "", scope
         : ctx.workbook.worksheets.getItem(scope).names.add(name, range);
     }
 
-    if (comment) item.comment = comment;
+    const taggedComment = comment ? `${comment} ${EPIFAI_TAG}` : EPIFAI_TAG;
+    item.comment = taggedComment;
     await ctx.sync();
   });
 }
@@ -146,13 +160,18 @@ export async function updateName(name: string, updates: UpdateNameParams): Promi
     const item = ctx.workbook.names.getItem(name);
     item.load("name,formula,comment");
     await ctx.sync();
+
+    const hadEpifaiTag = (item.comment || "").includes(EPIFAI_TAG);
     
     if (updates.refersTo) item.formula = updates.refersTo;
-    if (updates.comment !== undefined) item.comment = updates.comment;
+    if (updates.comment !== undefined) {
+      const cleanNew = updates.comment.replace(EPIFAI_TAG, "").trim();
+      item.comment = hadEpifaiTag ? (cleanNew ? `${cleanNew} ${EPIFAI_TAG}` : EPIFAI_TAG) : cleanNew;
+    }
     
     if (updates.newName && updates.newName !== item.name) {
       const f = updates.refersTo || item.formula;
-      const c = updates.comment !== undefined ? updates.comment : item.comment;
+      const c = item.comment;
       item.delete();
       const n = ctx.workbook.names.add(updates.newName, f);
       n.comment = c;
