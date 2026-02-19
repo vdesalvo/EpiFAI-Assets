@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useRenameChart, useGoToChart, useCreateNameFromChart } from "@/hooks/use-excel";
+import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useRenameChart, useGoToChart, useCreateNameFromChart, useTagAsEpifai, useUntagFromEpifai } from "@/hooks/use-excel";
 import { NameList } from "@/components/NameList";
 import { NameEditor } from "@/components/NameEditor";
 import { FullPageLoader, LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -117,6 +117,8 @@ export default function Home() {
   const renameChart = useRenameChart();
   const goToChart = useGoToChart();
   const createNameFromChart = useCreateNameFromChart();
+  const tagAsEpifai = useTagAsEpifai();
+  const untagFromEpifai = useUntagFromEpifai();
 
   // UI State
   const [view, setView] = useState<"list" | "edit">("list");
@@ -186,6 +188,24 @@ export default function Home() {
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message });
       setPendingDelete(null);
+    }
+  };
+
+  const handleTagName = async (name: ExcelName) => {
+    try {
+      await tagAsEpifai.mutateAsync({ name: name.name, scope: name.scope });
+      toast({ description: `Tagged "${name.name}" as Epifai` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    }
+  };
+
+  const handleUntagName = async (name: ExcelName) => {
+    try {
+      await untagFromEpifai.mutateAsync({ name: name.name, scope: name.scope });
+      toast({ description: `Untagged "${name.name}" from Epifai` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
     }
   };
 
@@ -281,6 +301,8 @@ export default function Home() {
                     onEdit={handleEditName}
                     onDelete={handleDeleteName}
                     onGoTo={handleGoToName}
+                    onTag={handleTagName}
+                    onUntag={handleUntagName}
                     pendingDeleteName={pendingDelete?.name || null}
                   />
                 </motion.div>

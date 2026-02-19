@@ -97,28 +97,16 @@ export async function getAllNames(): Promise<ExcelName[]> {
       const results: ExcelName[] = [];
 
       for (const item of names.items) {
-        let address = "";
-        let values: any[][] | undefined = undefined;
-        let status: ExcelName["status"] = "valid";
-        try {
-          const r = item.getRange();
-          r.load("address,values");
-          await ctx.sync();
-          address = r.address;
-          values = r.values;
-        } catch {
-          const f = (item.formula || "").toUpperCase();
-          if (f.includes("OFFSET(") || f.includes("INDIRECT(") || f.includes("INDEX(")) {
-            status = "valid";
-          } else {
-            status = "broken";
-          }
-        }
-
         const rawComment = item.comment || "";
         const isEpifai = rawComment.includes(EPIFAI_TAG);
         const skip = parseSkipTag(rawComment);
         const cleanComment = stripMetaTags(rawComment);
+
+        let status: ExcelName["status"] = "valid";
+        const val = String(item.value || "");
+        if (val.includes("#REF!")) {
+          status = "broken";
+        }
 
         results.push({
           name: item.name,
@@ -128,8 +116,8 @@ export async function getAllNames(): Promise<ExcelName[]> {
           comment: cleanComment,
           visible: item.visible,
           scope: "Workbook",
-          address,
-          values,
+          address: "",
+          values: undefined,
           status,
           origin: isEpifai ? "epifai" : "excel",
           skipRows: skip.skipRows,
@@ -144,43 +132,36 @@ export async function getAllNames(): Promise<ExcelName[]> {
         const sn = sheet.names;
         sn.load("items/name,items/type,items/value,items/formula,items/visible,items/comment");
         await ctx.sync();
+
         for (const item of sn.items) {
-          let address = "";
+          const rawComment = item.comment || "";
+          const isEpifai = rawComment.includes(EPIFAI_TAG);
+          const skip = parseSkipTag(rawComment);
+          const cleanComment = stripMetaTags(rawComment);
+
           let status: ExcelName["status"] = "valid";
-          try {
-            const r = item.getRange();
-            r.load("address");
-            await ctx.sync();
-            address = r.address;
-          } catch {
-            const f = (item.formula || "").toUpperCase();
-            if (f.includes("OFFSET(") || f.includes("INDIRECT(") || f.includes("INDEX(")) {
-              status = "valid";
-            } else {
-              status = "broken";
-            }
+          const val = String(item.value || "");
+          if (val.includes("#REF!")) {
+            status = "broken";
           }
-          const rawComment2 = item.comment || "";
-          const isEpifai2 = rawComment2.includes(EPIFAI_TAG);
-          const skip2 = parseSkipTag(rawComment2);
-          const cleanComment2 = stripMetaTags(rawComment2);
 
           results.push({
             name: item.name,
             type: item.type,
             value: item.value,
             formula: item.formula,
-            comment: cleanComment2,
+            comment: cleanComment,
             visible: item.visible,
             scope: sheet.name,
-            address,
+            address: "",
+            values: undefined,
             status,
-            origin: isEpifai2 ? "epifai" : "excel",
-            skipRows: skip2.skipRows,
-            skipCols: skip2.skipCols,
-            fixedRef: parseFixedRefTag(rawComment2),
-            dynamicRef: parseDynamicRefTag(rawComment2),
-            lastColOnly: parseLastColTag(rawComment2),
+            origin: isEpifai ? "epifai" : "excel",
+            skipRows: skip.skipRows,
+            skipCols: skip.skipCols,
+            fixedRef: parseFixedRefTag(rawComment),
+            dynamicRef: parseDynamicRefTag(rawComment),
+            lastColOnly: parseLastColTag(rawComment),
           });
         }
       }
@@ -188,8 +169,6 @@ export async function getAllNames(): Promise<ExcelName[]> {
     });
   } catch (error) {
     console.error("Error fetching names:", error);
-    // Return empty array or throw depending on desired behavior
-    // For mock purposes in browser without Excel, we might want to return dummy data
     if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
        console.warn("Mocking Excel Data for Development");
        return [
@@ -200,6 +179,57 @@ export async function getAllNames(): Promise<ExcelName[]> {
     }
     throw error;
   }
+}
+
+export async function resolveNameAddress(name: string, scope: string): Promise<string> {
+  return Excel.run(async (ctx) => {
+    try {
+      let namedItem;
+      if (scope && scope !== "Workbook") {
+        namedItem = ctx.workbook.worksheets.getItem(scope).names.getItem(name);
+      } else {
+        namedItem = ctx.workbook.names.getItem(name);
+      }
+      const r = namedItem.getRange();
+      r.load("address");
+      await ctx.sync();
+      return r.address;
+    } catch {
+      return "";
+    }
+  });
+}
+
+export async function tagAsEpifai(name: string, scope: string): Promise<void> {
+  return Excel.run(async (ctx) => {
+    let namedItem;
+    if (scope && scope !== "Workbook") {
+      namedItem = ctx.workbook.worksheets.getItem(scope).names.getItem(name);
+    } else {
+      namedItem = ctx.workbook.names.getItem(name);
+    }
+    namedItem.load("comment");
+    await ctx.sync();
+    if (!namedItem.comment.includes(EPIFAI_TAG)) {
+      namedItem.comment = (namedItem.comment + " " + EPIFAI_TAG).trim();
+      await ctx.sync();
+    }
+  });
+}
+
+export async function untagFromEpifai(name: string, scope: string): Promise<void> {
+  return Excel.run(async (ctx) => {
+    let namedItem;
+    if (scope && scope !== "Workbook") {
+      namedItem = ctx.workbook.worksheets.getItem(scope).names.getItem(name);
+    } else {
+      namedItem = ctx.workbook.names.getItem(name);
+    }
+    namedItem.load("comment");
+    await ctx.sync();
+    namedItem.comment = namedItem.comment.replace(EPIFAI_TAG, "").trim();
+    await ctx.sync();
+  });
 }
 
 export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedRef = "", dynamicRef = "", lastColOnly = false): Promise<void> {

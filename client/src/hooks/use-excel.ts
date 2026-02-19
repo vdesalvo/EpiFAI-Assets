@@ -44,6 +44,24 @@ export function useGoToName() {
   });
 }
 
+export function useTagAsEpifai() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, scope }: { name: string; scope: string }) =>
+      namesSvc.tagAsEpifai(name, scope),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-names"] }),
+  });
+}
+
+export function useUntagFromEpifai() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, scope }: { name: string; scope: string }) =>
+      namesSvc.untagFromEpifai(name, scope),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-names"] }),
+  });
+}
+
 // === CHARTS HOOKS ===
 
 export function useCharts() {
