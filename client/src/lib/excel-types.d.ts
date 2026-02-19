@@ -58,6 +58,7 @@ declare namespace Excel {
     worksheet: Worksheet;
     load(propertyNames?: string | string[]): void;
     select(): void;
+    getBoundingRect(anotherRange: Range | string): Range;
   }
 
   interface ChartCollection {
@@ -66,13 +67,27 @@ declare namespace Excel {
     load(propertyNames?: string | string[]): void;
   }
 
+  interface ChartSeriesCollection {
+    items: ChartSeries[];
+    getItemAt(index: number): ChartSeries;
+    load(propertyNames?: string | string[]): void;
+    count: number;
+  }
+
+  interface ChartSeries {
+    name: string;
+    getDimensionDataSourceString(dimension: string): { value: string };
+    getDimensionDataSourceType(dimension: string): { value: string };
+    load(propertyNames?: string | string[]): void;
+  }
+
   interface Chart {
     id: string;
     name: string;
     title: { text: string };
+    series: ChartSeriesCollection;
     activate(): void;
     getImage(): { value: string };
-    getDataRange(): Range;
     load(propertyNames?: string | string[]): void;
   }
 

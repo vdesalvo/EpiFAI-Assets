@@ -88,10 +88,49 @@ export async function createNameFromChart(sheetName: string, chartName: string, 
   const address = await Excel.run(async (ctx) => {
     const sheet = ctx.workbook.worksheets.getItem(sheetName);
     const chart = sheet.charts.getItem(chartName);
-    const dataRange = chart.getDataRange();
-    dataRange.load("address");
+    const seriesCollection = chart.series;
+    seriesCollection.load("count");
     await ctx.sync();
-    return dataRange.address;
+
+    const rangeAddresses: string[] = [];
+
+    for (let i = 0; i < seriesCollection.count; i++) {
+      const series = seriesCollection.getItemAt(i);
+      const valuesSource = series.getDimensionDataSourceString("Values");
+      await ctx.sync();
+      if (valuesSource.value) {
+        rangeAddresses.push(valuesSource.value);
+      }
+    }
+
+    if (rangeAddresses.length === 0) {
+      throw new Error("Could not read chart data range");
+    }
+
+    const allRefs: string[] = [];
+    for (const addr of rangeAddresses) {
+      for (const part of addr.split(",")) {
+        const trimmed = part.trim();
+        if (trimmed && !allRefs.includes(trimmed)) {
+          allRefs.push(trimmed);
+        }
+      }
+    }
+
+    try {
+      const firstRange = sheet.getRange(allRefs[0]);
+      firstRange.load("address");
+      const lastRange = sheet.getRange(allRefs[allRefs.length - 1]);
+      lastRange.load("address");
+      await ctx.sync();
+
+      const combined = firstRange.getBoundingRect(lastRange);
+      combined.load("address");
+      await ctx.sync();
+      return combined.address;
+    } catch {
+      return allRefs.join(",");
+    }
   });
 
   await addName(rangeName, `=${address}`, `Source: ${title}`);
