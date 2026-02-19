@@ -15,7 +15,8 @@ import {
   LayoutGrid,
   Maximize,
   Columns,
-  Plus
+  Plus,
+  Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,13 +27,16 @@ interface NameListProps {
   onGoTo: (name: ExcelName) => void;
   onCreate: () => void;
   onClaim?: (name: ExcelName) => void;
+  onDeleteBroken?: () => void;
+  isDeletingBroken?: boolean;
   pendingDeleteName?: string | null;
 }
 
-export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onClaim, pendingDeleteName }: NameListProps) {
+export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onClaim, onDeleteBroken, isDeletingBroken, pendingDeleteName }: NameListProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "epifai" | "excel" | "broken">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [confirmDeleteBroken, setConfirmDeleteBroken] = useState(false);
 
   const stats = {
     total: names.length,
@@ -248,18 +252,64 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onClaim, p
       </ScrollArea>
 
       {/* Footer */}
-      <div className="p-3 border-t bg-muted/10 flex items-center justify-between">
-        <span className="text-xs text-muted-foreground font-medium">
-          {filteredNames.length} names
-        </span>
-        <Button 
-          variant="ghost" 
-          className="text-primary h-auto p-0 text-xs font-semibold"
-          onClick={onCreate}
-          data-testid="button-new-named-range"
-        >
-          + New Named Range
-        </Button>
+      <div className="p-3 border-t bg-muted/10 space-y-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground font-medium">
+            {filteredNames.length} names
+          </span>
+          <Button 
+            variant="ghost" 
+            className="text-primary h-auto p-0 text-xs font-semibold"
+            onClick={onCreate}
+            data-testid="button-new-named-range"
+          >
+            + New Named Range
+          </Button>
+        </div>
+        {stats.broken > 0 && onDeleteBroken && (
+          <div className="flex items-center justify-between gap-2">
+            {confirmDeleteBroken ? (
+              <>
+                <span className="text-xs text-destructive font-medium">
+                  Delete {stats.broken} broken names?
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="text-xs"
+                    onClick={() => { onDeleteBroken(); setConfirmDeleteBroken(false); }}
+                    disabled={isDeletingBroken}
+                    data-testid="button-confirm-delete-broken"
+                  >
+                    {isDeletingBroken ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Trash2 className="w-3 h-3 mr-1" />}
+                    {isDeletingBroken ? "Deleting..." : "Yes, delete all"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs"
+                    onClick={() => setConfirmDeleteBroken(false)}
+                    disabled={isDeletingBroken}
+                    data-testid="button-cancel-delete-broken"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs text-destructive w-full"
+                onClick={() => setConfirmDeleteBroken(true)}
+                data-testid="button-delete-broken"
+              >
+                <Trash2 className="w-3 h-3 mr-1" /> Delete All Broken ({stats.broken})
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

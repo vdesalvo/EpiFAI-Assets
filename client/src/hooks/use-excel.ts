@@ -44,6 +44,14 @@ export function useGoToName() {
   });
 }
 
+export function useDeleteBrokenNames() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: namesSvc.deleteBrokenNames,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-names"] }),
+  });
+}
+
 export function useClaimName() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useRenameChart, useGoToChart, useCreateNameFromChart } from "@/hooks/use-excel";
+import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useDeleteBrokenNames, useRenameChart, useGoToChart, useCreateNameFromChart } from "@/hooks/use-excel";
 import { NameList } from "@/components/NameList";
 import { NameEditor } from "@/components/NameEditor";
 import { FullPageLoader, LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -115,6 +115,7 @@ export default function Home() {
   const deleteName = useDeleteName();
   const goToName = useGoToName();
   const claimName = useClaimName();
+  const deleteBroken = useDeleteBrokenNames();
   const renameChart = useRenameChart();
   const goToChart = useGoToChart();
   const createNameFromChart = useCreateNameFromChart();
@@ -194,6 +195,17 @@ export default function Home() {
     goToName.mutate({ name: name.name, scope: name.scope }, {
       onError: (err: any) => {
         toast({ variant: "destructive", title: "Go To failed", description: err?.message || "Could not navigate to this name" });
+      }
+    });
+  };
+
+  const handleDeleteBroken = () => {
+    deleteBroken.mutate(undefined, {
+      onSuccess: (count) => {
+        toast({ description: `Deleted ${count} broken name${count !== 1 ? "s" : ""}` });
+      },
+      onError: (err: any) => {
+        toast({ variant: "destructive", title: "Error", description: err?.message || "Could not delete broken names" });
       }
     });
   };
@@ -294,6 +306,8 @@ export default function Home() {
                     onDelete={handleDeleteName}
                     onGoTo={handleGoToName}
                     onClaim={handleClaimName}
+                    onDeleteBroken={handleDeleteBroken}
+                    isDeletingBroken={deleteBroken.isPending}
                     pendingDeleteName={pendingDelete?.name || null}
                   />
                 </motion.div>

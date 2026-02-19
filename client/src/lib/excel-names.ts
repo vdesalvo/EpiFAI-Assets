@@ -355,6 +355,50 @@ export async function deleteName(params: { name: string; scope: string }): Promi
   });
 }
 
+export async function deleteBrokenNames(): Promise<number> {
+  return Excel.run(async (ctx) => {
+    const wb = ctx.workbook;
+    const names = wb.names;
+    names.load("items/name,items/value,items/formula");
+    const sheets = wb.worksheets;
+    sheets.load("items/name");
+    await ctx.sync();
+
+    let count = 0;
+    const toDelete: any[] = [];
+
+    for (const item of names.items) {
+      if (isBrokenValue(item.value) && !isDynamicFormula(item.formula || "")) {
+        toDelete.push(item);
+      }
+    }
+
+    for (const sheet of sheets.items) {
+      sheet.names.load("items/name,items/value,items/formula");
+    }
+    await ctx.sync();
+
+    for (const sheet of sheets.items) {
+      for (const item of sheet.names.items) {
+        if (isBrokenValue(item.value) && !isDynamicFormula(item.formula || "")) {
+          toDelete.push(item);
+        }
+      }
+    }
+
+    for (const item of toDelete) {
+      item.delete();
+      count++;
+    }
+
+    if (count > 0) {
+      await ctx.sync();
+    }
+
+    return count;
+  });
+}
+
 export async function goToName(params: { name: string; scope: string }): Promise<void> {
   return Excel.run(async (ctx) => {
     try {
