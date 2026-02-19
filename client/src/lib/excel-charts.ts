@@ -82,32 +82,21 @@ export function sanitizeChartTitle(title: string): string {
     .replace(/^_|_$/g, "") || "ChartName";
 }
 
-export async function createNameFromChart(sheetName: string, chartName: string, title: string): Promise<string> {
-  const baseName = sanitizeChartTitle(title);
-
-  const existingNames = await Excel.run(async (ctx) => {
-    const names = ctx.workbook.names;
-    names.load("items/name");
-    await ctx.sync();
-    return names.items.map(n => n.name.toLowerCase());
-  });
-
-  let rangeName = baseName;
-  let suffix = 1;
-  while (existingNames.includes(rangeName.toLowerCase())) {
-    suffix++;
-    rangeName = `${baseName}_${suffix}`;
-  }
-
-  const address = await Excel.run(async (ctx) => {
+export async function createNameFromChart(sheetName: string, chartName: string, fallbackTitle: string): Promise<string> {
+  const result = await Excel.run(async (ctx) => {
     const sheet = ctx.workbook.worksheets.getItem(sheetName);
     const chart = sheet.charts.getItem(chartName);
+    chart.load("title/text");
+    const names = ctx.workbook.names;
+    names.load("items/name");
     const seriesCollection = chart.series;
     seriesCollection.load("count");
     await ctx.sync();
 
-    const rangeAddresses: string[] = [];
+    const title = chart.title?.text || fallbackTitle;
+    const existing = names.items.map(n => n.name.toLowerCase());
 
+    const rangeAddresses: string[] = [];
     for (let i = 0; i < seriesCollection.count; i++) {
       const series = seriesCollection.getItemAt(i);
       const valuesSource = series.getDimensionDataSourceString("Values");
@@ -131,22 +120,29 @@ export async function createNameFromChart(sheetName: string, chartName: string, 
       }
     }
 
+    let address: string;
     try {
       const firstRange = sheet.getRange(allRefs[0]);
-      firstRange.load("address");
       const lastRange = sheet.getRange(allRefs[allRefs.length - 1]);
-      lastRange.load("address");
-      await ctx.sync();
-
       const combined = firstRange.getBoundingRect(lastRange);
       combined.load("address");
       await ctx.sync();
-      return combined.address;
+      address = combined.address;
     } catch {
-      return allRefs.join(",");
+      address = allRefs.join(",");
     }
+
+    return { title, address, existing };
   });
 
-  await addName(rangeName, `=${address}`, `Source: ${title}`);
+  const baseName = sanitizeChartTitle(result.title);
+  let rangeName = baseName;
+  let suffix = 1;
+  while (result.existing.includes(rangeName.toLowerCase())) {
+    suffix++;
+    rangeName = `${baseName}_${suffix}`;
+  }
+
+  await addName(rangeName, `=${result.address}`, `Source: ${result.title}`);
   return rangeName;
 }
