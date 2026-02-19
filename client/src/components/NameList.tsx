@@ -266,7 +266,7 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onClaim, o
             + New Named Range
           </Button>
         </div>
-        {stats.broken > 0 && onDeleteBroken && (
+        {stats.broken > 0 && onDeleteBroken && filter === "broken" && (
           <div className="flex items-center justify-between gap-2">
             {confirmDeleteBroken ? (
               <>
