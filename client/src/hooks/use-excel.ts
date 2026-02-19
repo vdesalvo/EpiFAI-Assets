@@ -61,6 +61,13 @@ export function useClaimName() {
   });
 }
 
+export function useSelectionData() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: namesSvc.getSelectionData,
+  });
+}
+
 // === CHARTS HOOKS ===
 
 export function useCharts() {

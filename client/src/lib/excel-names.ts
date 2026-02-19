@@ -84,6 +84,19 @@ export interface UpdateNameParams {
   lastColOnly?: boolean;
 }
 
+export interface SelectionData {
+  address: string;       // Full address like "Sheet1!$A$1:$H$20"
+  sheet: string;         // Sheet name
+  values: any[][];       // 2D array of cell values
+  startCol: string;      // First column letter e.g. "A"
+  endCol: string;        // Last column letter e.g. "H"
+  startRow: number;      // First row number e.g. 1
+  endRow: number;        // Last row number e.g. 20
+  colCount: number;      // Number of columns
+  rowCount: number;      // Number of rows
+  columns: string[];     // Array of column letters ["A","B","C",...]
+}
+
 function isDynamicFormula(formula: string): boolean {
   const f = formula.toUpperCase();
   return f.includes("OFFSET(") || f.includes("INDIRECT(") || f.includes("INDEX(");
@@ -517,6 +530,41 @@ export async function selectNameRange(params: { name: string; scope: string }): 
   });
 }
 
+function colToNum(col: string): number {
+  let num = 0;
+  for (let i = 0; i < col.length; i++) {
+    num = num * 26 + (col.charCodeAt(i) - 64);
+  }
+  return num;
+}
+
+function numToCol(num: number): string {
+  let col = "";
+  while (num > 0) {
+    const rem = (num - 1) % 26;
+    col = String.fromCharCode(65 + rem) + col;
+    num = Math.floor((num - 1) / 26);
+  }
+  return col;
+}
+
+function parseRangeAddress(address: string): { sheet: string; startCol: string; startRow: number; endCol: string; endRow: number } {
+  // Address format: "Sheet1!$A$1:$H$20" or "Sheet1!$A$1"
+  const match = address.match(/^([^!]+)!\$([A-Z]+)\$(\d+)(?::\$([A-Z]+)\$(\d+))?$/);
+  
+  if (!match) {
+    throw new Error(`Invalid address format: ${address}`);
+  }
+
+  const sheet = match[1];
+  const startCol = match[2];
+  const startRow = parseInt(match[3], 10);
+  const endCol = match[4] || startCol;
+  const endRow = match[5] ? parseInt(match[5], 10) : startRow;
+
+  return { sheet, startCol, startRow, endCol, endRow };
+}
+
 export async function getSelection(): Promise<string> {
   return Excel.run(async (ctx) => {
     const r = ctx.workbook.getSelectedRange();
@@ -524,6 +572,74 @@ export async function getSelection(): Promise<string> {
     await ctx.sync();
     return r.address;
   });
+}
+
+export async function getSelectionData(): Promise<SelectionData> {
+  try {
+    return await Excel.run(async (ctx) => {
+      const worksheet = ctx.workbook.worksheets.getActiveWorksheet();
+      const range = ctx.workbook.getSelectedRange();
+      
+      worksheet.load("name");
+      range.load("address,values");
+      await ctx.sync();
+
+      const address = range.address;
+      const sheet = worksheet.name;
+      const values = range.values;
+
+      // Parse address to extract startCol, endCol, startRow, endRow
+      const { startCol, startRow, endCol, endRow } = parseRangeAddress(address);
+
+      // Calculate row and column counts from the values array
+      const rowCount = values ? values.length : (endRow - startRow + 1);
+      const colCount = values && values.length > 0 ? values[0].length : (colToNum(endCol) - colToNum(startCol) + 1);
+
+      // Build columns array
+      const columns: string[] = [];
+      const startColNum = colToNum(startCol);
+      const endColNum = colToNum(endCol);
+      for (let i = startColNum; i <= endColNum; i++) {
+        columns.push(numToCol(i));
+      }
+
+      return {
+        address,
+        sheet,
+        values,
+        startCol,
+        endCol,
+        startRow,
+        endRow,
+        colCount,
+        rowCount,
+        columns,
+      };
+    });
+  } catch (error) {
+    console.error("Error fetching selection data:", error);
+    // Return mock data for dev/fallback
+    if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
+      console.warn("Mocking Excel Selection Data for Development");
+      return {
+        address: "Sheet1!$A$1:$H$20",
+        sheet: "Sheet1",
+        values: [
+          ["Header1", "Header2", "Header3", "Header4", "Header5", "Header6", "Header7", "Header8"],
+          [1, 2, 3, 4, 5, 6, 7, 8],
+          [10, 20, 30, 40, 50, 60, 70, 80],
+        ],
+        startCol: "A",
+        endCol: "H",
+        startRow: 1,
+        endRow: 20,
+        colCount: 8,
+        rowCount: 20,
+        columns: ["A", "B", "C", "D", "E", "F", "G", "H"],
+      };
+    }
+    throw error;
+  }
 }
 
 export async function onSelectionChange(cb: (address: string) => void): Promise<() => Promise<void>> {

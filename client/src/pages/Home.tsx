@@ -3,9 +3,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useDeleteBrokenNames, useRenameChart, useGoToChart, useCreateNameFromChart } from "@/hooks/use-excel";
 import { NameList } from "@/components/NameList";
 import { NameEditor } from "@/components/NameEditor";
+import { RangePicker } from "@/components/RangePicker";
 import { FullPageLoader, LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
-import { ExcelName } from "@/lib/excel-names";
+import { ExcelName, getSelectionData } from "@/lib/excel-names";
 import { RefreshCw, Table2, BarChart3, Info, Download, Plus, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -121,7 +122,7 @@ export default function Home() {
   const createNameFromChart = useCreateNameFromChart();
 
   // UI State
-  const [view, setView] = useState<"list" | "edit">("list");
+  const [view, setView] = useState<"list" | "edit" | "visual-picker">("list");
   const [editTarget, setEditTarget] = useState<ExcelName | undefined>(undefined);
   const [activeTab, setActiveTab] = useState("names");
 
@@ -140,6 +141,10 @@ export default function Home() {
   const handleCreateName = () => {
     setEditTarget(undefined);
     setView("edit");
+  };
+
+  const handleVisualPicker = () => {
+    setView("visual-picker");
   };
 
   const handleEditName = (name: ExcelName) => {
@@ -302,6 +307,7 @@ export default function Home() {
                   <NameList 
                     names={names} 
                     onCreate={handleCreateName}
+                    onVisualPicker={handleVisualPicker}
                     onEdit={handleEditName}
                     onDelete={handleDeleteName}
                     onGoTo={handleGoToName}
@@ -311,7 +317,7 @@ export default function Home() {
                     pendingDeleteName={pendingDelete?.name || null}
                   />
                 </motion.div>
-              ) : (
+              ) : view === "edit" ? (
                 <motion.div 
                   key="edit"
                   initial={{ opacity: 0, x: 20 }} 
@@ -324,6 +330,20 @@ export default function Home() {
                     initialData={editTarget}
                     onSave={handleSaveName} 
                     onCancel={() => setView("list")} 
+                  />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="visual-picker"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="absolute inset-0"
+                >
+                  <RangePicker
+                    onSave={handleSaveName}
+                    onCancel={() => setView("list")}
+                    onPickSelection={getSelectionData}
                   />
                 </motion.div>
               )}

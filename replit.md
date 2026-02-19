@@ -29,7 +29,8 @@ Preferred communication style: Simple, everyday language.
 - `client/src/hooks/use-excel.ts` — React Query hooks wrapping the Excel service functions
 - `client/src/components/NameList.tsx` — Main list view for named ranges with search/filter
 - `client/src/components/NameEditor.tsx` — Form for creating/editing named ranges with range picker
-- `client/src/pages/Home.tsx` — Main page with tabbed interface (Names tab + Charts tab)
+- `client/src/components/RangePicker.tsx` — Visual range picker: renders Excel selection as grid, supports row/col dimming (skip), fixed/dynamic column split, last-col toggle
+- `client/src/pages/Home.tsx` — Main page with tabbed interface (Names tab + Charts tab), three views: list, edit, visual-picker
 
 ### Office.js Integration
 - The Office.js script is loaded via `<script>` tag in `client/index.html`
