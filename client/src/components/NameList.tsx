@@ -34,7 +34,7 @@ interface NameListProps {
 
 export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onClaim, onDeleteBroken, isDeletingBroken, pendingDeleteName }: NameListProps) {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "epifai" | "excel" | "broken">("all");
+  const [filter, setFilter] = useState<"all" | "epifai" | "excel" | "broken">("epifai");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmDeleteBroken, setConfirmDeleteBroken] = useState(false);
 
