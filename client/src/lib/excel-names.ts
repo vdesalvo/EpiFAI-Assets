@@ -84,6 +84,51 @@ export interface UpdateNameParams {
   lastColOnly?: boolean;
 }
 
+function isDynamicFormula(formula: string): boolean {
+  const f = formula.toUpperCase();
+  return f.includes("OFFSET(") || f.includes("INDIRECT(") || f.includes("INDEX(");
+}
+
+function isBrokenValue(value: any): boolean {
+  if (typeof value === "string") {
+    const v = value.toUpperCase();
+    return v === "#REF!" || v.includes("#REF!");
+  }
+  return false;
+}
+
+function buildExcelName(item: any, scope: string, address: string, values?: any[][]): ExcelName {
+  const rawComment = item.comment || "";
+  const isEpifai = rawComment.includes(EPIFAI_TAG);
+  const skip = parseSkipTag(rawComment);
+
+  let status: ExcelName["status"] = "valid";
+  if (!address && !isDynamicFormula(item.formula || "")) {
+    status = "broken";
+  } else if (isBrokenValue(item.value)) {
+    status = "broken";
+  }
+
+  return {
+    name: item.name,
+    type: item.type,
+    value: item.value,
+    formula: item.formula,
+    comment: stripMetaTags(rawComment),
+    visible: item.visible,
+    scope,
+    address,
+    values,
+    status,
+    origin: isEpifai ? "epifai" : "excel",
+    skipRows: skip.skipRows,
+    skipCols: skip.skipCols,
+    fixedRef: parseFixedRefTag(rawComment),
+    dynamicRef: parseDynamicRefTag(rawComment),
+    lastColOnly: parseLastColTag(rawComment),
+  };
+}
+
 export async function getAllNames(): Promise<ExcelName[]> {
   try {
     return await Excel.run(async (ctx) => {
@@ -96,94 +141,98 @@ export async function getAllNames(): Promise<ExcelName[]> {
 
       const results: ExcelName[] = [];
 
+      const hasNullObjectApi = typeof names.items[0]?.getRangeOrNullObject === "function";
+
+      const wbPending: { item: any; range: any | null; skip: boolean }[] = [];
+
       for (const item of names.items) {
-        let address = "";
-        let values: any[][] | undefined = undefined;
-        let status: ExcelName["status"] = "valid";
-        try {
-          const r = item.getRange();
-          r.load("address,values");
-          await ctx.sync();
-          address = r.address;
-          values = r.values;
-        } catch {
-          const f = (item.formula || "").toUpperCase();
-          if (f.includes("OFFSET(") || f.includes("INDIRECT(") || f.includes("INDEX(")) {
-            status = "valid";
-          } else {
-            status = "broken";
-          }
+        const f = (item.formula || "").toUpperCase();
+        const val = item.value;
+        if (isBrokenValue(val) || isDynamicFormula(f)) {
+          wbPending.push({ item, range: null, skip: true });
+        } else if (hasNullObjectApi) {
+          const r = item.getRangeOrNullObject();
+          r.load("address,values,isNullObject");
+          wbPending.push({ item, range: r, skip: false });
+        } else {
+          wbPending.push({ item, range: null, skip: false });
         }
-
-        const rawComment = item.comment || "";
-        const isEpifai = rawComment.includes(EPIFAI_TAG);
-        const skip = parseSkipTag(rawComment);
-        const cleanComment = stripMetaTags(rawComment);
-
-        results.push({
-          name: item.name,
-          type: item.type,
-          value: item.value,
-          formula: item.formula,
-          comment: cleanComment,
-          visible: item.visible,
-          scope: "Workbook",
-          address,
-          values,
-          status,
-          origin: isEpifai ? "epifai" : "excel",
-          skipRows: skip.skipRows,
-          skipCols: skip.skipCols,
-          fixedRef: parseFixedRefTag(rawComment),
-          dynamicRef: parseDynamicRefTag(rawComment),
-          lastColOnly: parseLastColTag(rawComment),
-        });
       }
 
       for (const sheet of sheets.items) {
-        const sn = sheet.names;
-        sn.load("items/name,items/type,items/value,items/formula,items/visible,items/comment");
-        await ctx.sync();
-        for (const item of sn.items) {
+        sheet.names.load("items/name,items/type,items/value,items/formula,items/visible,items/comment");
+      }
+
+      await ctx.sync();
+
+      for (const { item, range, skip } of wbPending) {
+        if (skip) {
+          results.push(buildExcelName(item, "Workbook", ""));
+        } else if (range) {
+          if (range.isNullObject) {
+            results.push(buildExcelName(item, "Workbook", ""));
+          } else {
+            results.push(buildExcelName(item, "Workbook", range.address || "", range.values));
+          }
+        } else {
           let address = "";
-          let status: ExcelName["status"] = "valid";
+          let values: any[][] | undefined;
+          try {
+            const r = item.getRange();
+            r.load("address,values");
+            await ctx.sync();
+            address = r.address || "";
+            values = r.values;
+          } catch {
+          }
+          results.push(buildExcelName(item, "Workbook", address, values));
+        }
+      }
+
+      const allSheetPending: { item: any; range: any | null; skip: boolean; sheetName: string }[] = [];
+
+      for (const sheet of sheets.items) {
+        for (const item of sheet.names.items) {
+          const f = (item.formula || "").toUpperCase();
+          const val = item.value;
+          if (isBrokenValue(val) || isDynamicFormula(f)) {
+            allSheetPending.push({ item, range: null, skip: true, sheetName: sheet.name });
+          } else if (hasNullObjectApi) {
+            const r = item.getRangeOrNullObject();
+            r.load("address,isNullObject");
+            allSheetPending.push({ item, range: r, skip: false, sheetName: sheet.name });
+          } else {
+            allSheetPending.push({ item, range: null, skip: false, sheetName: sheet.name });
+          }
+        }
+      }
+
+      if (allSheetPending.some(p => !p.skip && p.range)) {
+        await ctx.sync();
+      }
+
+      for (const { item, range, skip, sheetName } of allSheetPending) {
+        if (skip) {
+          results.push(buildExcelName(item, sheetName, ""));
+        } else if (range) {
+          if (range.isNullObject) {
+            results.push(buildExcelName(item, sheetName, ""));
+          } else {
+            results.push(buildExcelName(item, sheetName, range.address || ""));
+          }
+        } else {
+          let address = "";
           try {
             const r = item.getRange();
             r.load("address");
             await ctx.sync();
-            address = r.address;
+            address = r.address || "";
           } catch {
-            const f = (item.formula || "").toUpperCase();
-            if (f.includes("OFFSET(") || f.includes("INDIRECT(") || f.includes("INDEX(")) {
-              status = "valid";
-            } else {
-              status = "broken";
-            }
           }
-          const rawComment2 = item.comment || "";
-          const isEpifai2 = rawComment2.includes(EPIFAI_TAG);
-          const skip2 = parseSkipTag(rawComment2);
-          const cleanComment2 = stripMetaTags(rawComment2);
-
-          results.push({
-            name: item.name,
-            type: item.type,
-            value: item.value,
-            formula: item.formula,
-            comment: cleanComment2,
-            visible: item.visible,
-            scope: sheet.name,
-            address,
-            status,
-            origin: isEpifai2 ? "epifai" : "excel",
-            skipRows: skip2.skipRows,
-            skipCols: skip2.skipCols,
-            fixedRef: parseFixedRefTag(rawComment2),
-            dynamicRef: parseDynamicRefTag(rawComment2),
-            lastColOnly: parseLastColTag(rawComment2),
-          });
+          results.push(buildExcelName(item, sheetName, address));
         }
       }
+
       return results;
     });
   } catch (error) {

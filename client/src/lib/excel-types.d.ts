@@ -48,6 +48,7 @@ declare namespace Excel {
     comment: string;
     visible: boolean;
     getRange(): Range;
+    getRangeOrNullObject(): Range;
     delete(): void;
     load(propertyNames?: string | string[]): void;
   }
@@ -56,6 +57,7 @@ declare namespace Excel {
     address: string;
     values: any[][];
     worksheet: Worksheet;
+    isNullObject: boolean;
     load(propertyNames?: string | string[]): void;
     select(): void;
     getBoundingRect(anotherRange: Range | string): Range;
