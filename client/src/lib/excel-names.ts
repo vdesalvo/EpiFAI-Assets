@@ -188,6 +188,8 @@ export async function getAllNames(): Promise<ExcelName[]> {
     });
   } catch (error) {
     console.error("Error fetching names:", error);
+    // Return empty array or throw depending on desired behavior
+    // For mock purposes in browser without Excel, we might want to return dummy data
     if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
        console.warn("Mocking Excel Data for Development");
        return [
@@ -198,57 +200,6 @@ export async function getAllNames(): Promise<ExcelName[]> {
     }
     throw error;
   }
-}
-
-export async function resolveNameAddress(name: string, scope: string): Promise<string> {
-  return Excel.run(async (ctx) => {
-    try {
-      let namedItem;
-      if (scope && scope !== "Workbook") {
-        namedItem = ctx.workbook.worksheets.getItem(scope).names.getItem(name);
-      } else {
-        namedItem = ctx.workbook.names.getItem(name);
-      }
-      const r = namedItem.getRange();
-      r.load("address");
-      await ctx.sync();
-      return r.address;
-    } catch {
-      return "";
-    }
-  });
-}
-
-export async function tagAsEpifai(name: string, scope: string): Promise<void> {
-  return Excel.run(async (ctx) => {
-    let namedItem;
-    if (scope && scope !== "Workbook") {
-      namedItem = ctx.workbook.worksheets.getItem(scope).names.getItem(name);
-    } else {
-      namedItem = ctx.workbook.names.getItem(name);
-    }
-    namedItem.load("comment");
-    await ctx.sync();
-    if (!namedItem.comment.includes(EPIFAI_TAG)) {
-      namedItem.comment = (namedItem.comment + " " + EPIFAI_TAG).trim();
-      await ctx.sync();
-    }
-  });
-}
-
-export async function untagFromEpifai(name: string, scope: string): Promise<void> {
-  return Excel.run(async (ctx) => {
-    let namedItem;
-    if (scope && scope !== "Workbook") {
-      namedItem = ctx.workbook.worksheets.getItem(scope).names.getItem(name);
-    } else {
-      namedItem = ctx.workbook.names.getItem(name);
-    }
-    namedItem.load("comment");
-    await ctx.sync();
-    namedItem.comment = namedItem.comment.replace(EPIFAI_TAG, "").trim();
-    await ctx.sync();
-  });
 }
 
 export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedRef = "", dynamicRef = "", lastColOnly = false): Promise<void> {

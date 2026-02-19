@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExcelName, selectNameRange, resolveNameAddress } from "@/lib/excel-names";
+import { ExcelName, selectNameRange } from "@/lib/excel-names";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,8 +14,7 @@ import {
   HelpCircle,
   LayoutGrid,
   Maximize,
-  Columns,
-  Tag
+  Columns
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,16 +24,13 @@ interface NameListProps {
   onDelete: (name: ExcelName) => void;
   onGoTo: (name: ExcelName) => void;
   onCreate: () => void;
-  onTag: (name: ExcelName) => void;
-  onUntag: (name: ExcelName) => void;
   pendingDeleteName?: string | null;
 }
 
-export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onTag, onUntag, pendingDeleteName }: NameListProps) {
+export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDeleteName }: NameListProps) {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "epifai" | "excel" | "broken">("epifai");
+  const [filter, setFilter] = useState<"all" | "epifai" | "excel" | "broken">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [resolvedAddresses, setResolvedAddresses] = useState<Record<string, string>>({});
 
   const stats = {
     total: names.length,
@@ -123,29 +119,18 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onTag, onU
           )}
           
           {filteredNames.map((n) => {
-            const nameKey = `${n.scope}:${n.name}`;
-            const isSelected = selectedId === nameKey;
+            const isSelected = selectedId === n.name;
             const rangeType = getRangeType(n);
             const dynamic = rangeType !== "fixed";
-            const displayAddress = resolvedAddresses[nameKey] || n.address;
             
             return (
               <div
-                key={nameKey}
+                key={n.name + n.scope}
                 onClick={() => {
-                  const newId = isSelected ? null : nameKey;
+                  const newId = isSelected ? null : n.name;
                   setSelectedId(newId);
-                  if (newId) {
-                    if (n.status === "valid") {
-                      selectNameRange({ name: n.name, scope: n.scope }).catch(() => {});
-                    }
-                    if (!n.address && !resolvedAddresses[nameKey]) {
-                      resolveNameAddress(n.name, n.scope).then(addr => {
-                        if (addr) {
-                          setResolvedAddresses(prev => ({ ...prev, [nameKey]: addr }));
-                        }
-                      });
-                    }
+                  if (newId && n.status === "valid") {
+                    selectNameRange({ name: n.name, scope: n.scope }).catch(() => {});
                   }
                 }}
                 className={cn(
@@ -187,11 +172,11 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onTag, onU
                   </div>
                   
                   <div className="text-xs font-mono text-muted-foreground truncate mb-1 bg-muted/30 p-1 rounded">
-                    {dynamic ? n.formula.replace(/^=/, "") : (displayAddress || n.formula.replace(/^=/, ""))}
+                    {dynamic ? n.formula.replace(/^=/, "") : (n.address || n.formula.replace(/^=/, ""))}
                   </div>
-                  {dynamic && displayAddress && (
+                  {dynamic && n.address && (
                     <div className="text-[10px] text-muted-foreground mb-1">
-                      Currently resolves to: <span className="font-mono font-medium text-foreground/70">{displayAddress}</span>
+                      Currently resolves to: <span className="font-mono font-medium text-foreground/70">{n.address}</span>
                     </div>
                   )}
 
@@ -210,27 +195,6 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onTag, onU
                       )}
                       
                       <div className="flex items-center gap-2 mt-2">
-                        {n.origin === "excel" ? (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="text-xs"
-                            onClick={(e) => { e.stopPropagation(); onTag(n); }}
-                            data-testid={`button-tag-${n.name}`}
-                          >
-                            <Tag className="w-3 h-3 mr-1.5" /> Tag Epifai
-                          </Button>
-                        ) : (
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            className="text-xs text-muted-foreground"
-                            onClick={(e) => { e.stopPropagation(); onUntag(n); }}
-                            data-testid={`button-untag-${n.name}`}
-                          >
-                            <Tag className="w-3 h-3 mr-1.5" /> Untag
-                          </Button>
-                        )}
                         <Button 
                           size="sm" 
                           variant="default"
