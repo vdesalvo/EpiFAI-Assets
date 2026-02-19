@@ -83,7 +83,21 @@ export function sanitizeChartTitle(title: string): string {
 }
 
 export async function createNameFromChart(sheetName: string, chartName: string, title: string): Promise<string> {
-  const rangeName = sanitizeChartTitle(title);
+  const baseName = sanitizeChartTitle(title);
+
+  const existingNames = await Excel.run(async (ctx) => {
+    const names = ctx.workbook.names;
+    names.load("items/name");
+    await ctx.sync();
+    return names.items.map(n => n.name.toLowerCase());
+  });
+
+  let rangeName = baseName;
+  let suffix = 1;
+  while (existingNames.includes(rangeName.toLowerCase())) {
+    suffix++;
+    rangeName = `${baseName}_${suffix}`;
+  }
 
   const address = await Excel.run(async (ctx) => {
     const sheet = ctx.workbook.worksheets.getItem(sheetName);
