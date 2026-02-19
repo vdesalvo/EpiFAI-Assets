@@ -41,13 +41,13 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onClaim, o
   const stats = {
     total: names.length,
     epifai: names.filter(n => n.origin === "epifai").length,
-    excel: names.filter(n => n.origin === "excel").length,
+    excel: names.filter(n => n.origin === "excel" && n.status !== "broken").length,
     broken: names.filter(n => n.status === "broken").length,
   };
 
   const filteredNames = names.filter(n => {
     if (filter === "epifai" && n.origin !== "epifai") return false;
-    if (filter === "excel" && n.origin !== "excel") return false;
+    if (filter === "excel" && (n.origin !== "excel" || n.status === "broken")) return false;
     if (filter === "broken" && n.status !== "broken") return false;
     if (search) {
       const q = search.toLowerCase();
