@@ -75,7 +75,7 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDel
       {/* Search & Filters */}
       <div className="p-3 border-b space-y-3 bg-muted/20">
         <div className="flex gap-1 p-1 bg-muted rounded-lg">
-          {(["all", "epifai", "excel", "broken"] as const).map(key => {
+          {(["epifai", "excel", "all", "broken"] as const).map(key => {
             const labels: Record<string, string> = { all: "ALL", epifai: "EPIFAI", excel: "EXCEL", broken: "BROKEN" };
             return (
               <button
