@@ -198,7 +198,7 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDel
                         <Button 
                           size="sm" 
                           variant="default"
-                          className="text-xs flex-1"
+                          className="text-xs"
                           onClick={(e) => { e.stopPropagation(); onGoTo(n); }}
                           data-testid={`button-goto-${n.name}`}
                         >
@@ -207,7 +207,7 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDel
                         <Button 
                           size="sm" 
                           variant="outline"
-                          className="text-xs flex-1"
+                          className="text-xs"
                           onClick={(e) => { e.stopPropagation(); onEdit(n); }}
                           data-testid={`button-edit-${n.name}`}
                         >
