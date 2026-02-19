@@ -6,7 +6,7 @@ import { NameEditor } from "@/components/NameEditor";
 import { FullPageLoader, LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { ExcelName } from "@/lib/excel-names";
-import { RefreshCw, Table2, BarChart3, Info, Download, Plus } from "lucide-react";
+import { RefreshCw, Table2, BarChart3, Info, Download, Plus, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -26,15 +26,27 @@ function BuildTimestamp() {
 }
 
 // Simple Chart List Item Component (Internal)
-function ChartListItem({ chart, onRename, onGoTo, onCreateName }: { chart: any, onRename: (id: string, name: string) => void, onGoTo: (c: any) => void, onCreateName: (c: any) => void }) {
+function ChartListItem({ chart, onRename, onGoTo, onCreateName }: { chart: any, onRename: (id: string, name: string) => void, onGoTo: (c: any) => void, onCreateName: (c: any) => Promise<void> }) {
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(chart.name);
+  const [creating, setCreating] = useState<"idle" | "loading" | "done">("idle");
 
   const handleSave = () => {
     if (tempName !== chart.name) {
       onRename(chart.id, tempName);
     }
     setIsEditing(false);
+  };
+
+  const handleCreate = async () => {
+    setCreating("loading");
+    try {
+      await onCreateName(chart);
+      setCreating("done");
+      setTimeout(() => setCreating("idle"), 2000);
+    } catch {
+      setCreating("idle");
+    }
   };
 
   return (
@@ -64,8 +76,21 @@ function ChartListItem({ chart, onRename, onGoTo, onCreateName }: { chart: any, 
       </div>
       <div className="flex items-center gap-1 shrink-0 ml-2">
         {chart.title && chart.title !== "(No Title)" && (
-          <Button size="icon" variant="ghost" onClick={() => onCreateName(chart)} title="Create named range from chart title" data-testid={`button-create-name-${chart.id}`}>
-            <Plus className="w-4 h-4" />
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleCreate}
+            disabled={creating === "loading"}
+            title="Create named range from chart title"
+            data-testid={`button-create-name-${chart.id}`}
+          >
+            {creating === "loading" ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : creating === "done" ? (
+              <Check className="w-4 h-4 text-green-600" />
+            ) : (
+              <Plus className="w-4 h-4" />
+            )}
           </Button>
         )}
         <Button size="sm" variant="ghost" onClick={() => onGoTo(chart)} data-testid={`button-goto-chart-${chart.id}`}>
