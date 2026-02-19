@@ -359,43 +359,71 @@ export async function deleteBrokenNames(): Promise<number> {
   return Excel.run(async (ctx) => {
     const wb = ctx.workbook;
     const names = wb.names;
-    names.load("items/name,items/value,items/formula");
+    names.load("items/name,items/type,items/value,items/formula,items/comment");
     const sheets = wb.worksheets;
     sheets.load("items/name");
     await ctx.sync();
 
-    let count = 0;
     const toDelete: any[] = [];
+    const hasNullObjectApi = names.items.length > 0 && typeof names.items[0].getRangeOrNullObject === "function";
 
+    const wbCheck: { item: any; range: any | null }[] = [];
     for (const item of names.items) {
-      if (isBrokenValue(item.value) && !isDynamicFormula(item.formula || "")) {
+      const f = (item.formula || "").toUpperCase();
+      if (isDynamicFormula(f)) continue;
+      if (isBrokenValue(item.value)) {
         toDelete.push(item);
+      } else if (hasNullObjectApi) {
+        const r = item.getRangeOrNullObject();
+        r.load("isNullObject");
+        wbCheck.push({ item, range: r });
       }
     }
 
     for (const sheet of sheets.items) {
-      sheet.names.load("items/name,items/value,items/formula");
+      sheet.names.load("items/name,items/type,items/value,items/formula,items/comment");
     }
     await ctx.sync();
 
+    const sheetCheck: { item: any; range: any | null }[] = [];
     for (const sheet of sheets.items) {
       for (const item of sheet.names.items) {
-        if (isBrokenValue(item.value) && !isDynamicFormula(item.formula || "")) {
+        const f = (item.formula || "").toUpperCase();
+        if (isDynamicFormula(f)) continue;
+        if (isBrokenValue(item.value)) {
           toDelete.push(item);
+        } else if (hasNullObjectApi) {
+          const r = item.getRangeOrNullObject();
+          r.load("isNullObject");
+          sheetCheck.push({ item, range: r });
         }
+      }
+    }
+
+    if (wbCheck.length > 0 || sheetCheck.length > 0) {
+      await ctx.sync();
+    }
+
+    for (const { item, range } of wbCheck) {
+      if (range && range.isNullObject) {
+        toDelete.push(item);
+      }
+    }
+    for (const { item, range } of sheetCheck) {
+      if (range && range.isNullObject) {
+        toDelete.push(item);
       }
     }
 
     for (const item of toDelete) {
       item.delete();
-      count++;
     }
 
-    if (count > 0) {
+    if (toDelete.length > 0) {
       await ctx.sync();
     }
 
-    return count;
+    return toDelete.length;
   });
 }
 
