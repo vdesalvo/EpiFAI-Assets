@@ -97,16 +97,28 @@ export async function getAllNames(): Promise<ExcelName[]> {
       const results: ExcelName[] = [];
 
       for (const item of names.items) {
+        let address = "";
+        let values: any[][] | undefined = undefined;
+        let status: ExcelName["status"] = "valid";
+        try {
+          const r = item.getRange();
+          r.load("address,values");
+          await ctx.sync();
+          address = r.address;
+          values = r.values;
+        } catch {
+          const f = (item.formula || "").toUpperCase();
+          if (f.includes("OFFSET(") || f.includes("INDIRECT(") || f.includes("INDEX(")) {
+            status = "valid";
+          } else {
+            status = "broken";
+          }
+        }
+
         const rawComment = item.comment || "";
         const isEpifai = rawComment.includes(EPIFAI_TAG);
         const skip = parseSkipTag(rawComment);
         const cleanComment = stripMetaTags(rawComment);
-
-        let status: ExcelName["status"] = "valid";
-        const val = String(item.value || "");
-        if (val.includes("#REF!")) {
-          status = "broken";
-        }
 
         results.push({
           name: item.name,
@@ -116,8 +128,8 @@ export async function getAllNames(): Promise<ExcelName[]> {
           comment: cleanComment,
           visible: item.visible,
           scope: "Workbook",
-          address: "",
-          values: undefined,
+          address,
+          values,
           status,
           origin: isEpifai ? "epifai" : "excel",
           skipRows: skip.skipRows,
@@ -132,36 +144,43 @@ export async function getAllNames(): Promise<ExcelName[]> {
         const sn = sheet.names;
         sn.load("items/name,items/type,items/value,items/formula,items/visible,items/comment");
         await ctx.sync();
-
         for (const item of sn.items) {
-          const rawComment = item.comment || "";
-          const isEpifai = rawComment.includes(EPIFAI_TAG);
-          const skip = parseSkipTag(rawComment);
-          const cleanComment = stripMetaTags(rawComment);
-
+          let address = "";
           let status: ExcelName["status"] = "valid";
-          const val = String(item.value || "");
-          if (val.includes("#REF!")) {
-            status = "broken";
+          try {
+            const r = item.getRange();
+            r.load("address");
+            await ctx.sync();
+            address = r.address;
+          } catch {
+            const f = (item.formula || "").toUpperCase();
+            if (f.includes("OFFSET(") || f.includes("INDIRECT(") || f.includes("INDEX(")) {
+              status = "valid";
+            } else {
+              status = "broken";
+            }
           }
+          const rawComment2 = item.comment || "";
+          const isEpifai2 = rawComment2.includes(EPIFAI_TAG);
+          const skip2 = parseSkipTag(rawComment2);
+          const cleanComment2 = stripMetaTags(rawComment2);
 
           results.push({
             name: item.name,
             type: item.type,
             value: item.value,
             formula: item.formula,
-            comment: cleanComment,
+            comment: cleanComment2,
             visible: item.visible,
             scope: sheet.name,
-            address: "",
-            values: undefined,
+            address,
             status,
-            origin: isEpifai ? "epifai" : "excel",
-            skipRows: skip.skipRows,
-            skipCols: skip.skipCols,
-            fixedRef: parseFixedRefTag(rawComment),
-            dynamicRef: parseDynamicRefTag(rawComment),
-            lastColOnly: parseLastColTag(rawComment),
+            origin: isEpifai2 ? "epifai" : "excel",
+            skipRows: skip2.skipRows,
+            skipCols: skip2.skipCols,
+            fixedRef: parseFixedRefTag(rawComment2),
+            dynamicRef: parseDynamicRefTag(rawComment2),
+            lastColOnly: parseLastColTag(rawComment2),
           });
         }
       }
