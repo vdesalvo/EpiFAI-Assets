@@ -68,10 +68,10 @@ function ChartListItem({ chart, onRename, onGoTo, onCreateName }: { chart: any, 
             />
           ) : (
             <div className="text-sm font-semibold text-foreground truncate cursor-text" onClick={() => setIsEditing(true)} title="Click to rename">
-              {chart.name}
+              {chart.title || "(No Title)"}
             </div>
           )}
-          <div className="text-xs text-muted-foreground truncate">{chart.title} • {chart.sheet}</div>
+          <div className="text-xs text-muted-foreground truncate">{chart.name} • {chart.sheet}</div>
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0 ml-2">
