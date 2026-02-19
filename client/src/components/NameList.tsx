@@ -14,7 +14,8 @@ import {
   HelpCircle,
   LayoutGrid,
   Maximize,
-  Columns
+  Columns,
+  Plus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,10 +25,11 @@ interface NameListProps {
   onDelete: (name: ExcelName) => void;
   onGoTo: (name: ExcelName) => void;
   onCreate: () => void;
+  onClaim?: (name: ExcelName) => void;
   pendingDeleteName?: string | null;
 }
 
-export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDeleteName }: NameListProps) {
+export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onClaim, pendingDeleteName }: NameListProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "epifai" | "excel" | "broken">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -149,9 +151,21 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, pendingDel
                           Epifai
                         </span>
                       ) : (
-                        <span className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/50 shrink-0" data-testid={`origin-excel-${n.name}`}>
-                          Excel
-                        </span>
+                        <>
+                          <span className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border/50 shrink-0" data-testid={`origin-excel-${n.name}`}>
+                            Excel
+                          </span>
+                          {onClaim && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onClaim(n); }}
+                              className="inline-flex items-center justify-center w-5 h-5 rounded bg-primary/10 text-primary border border-primary/20 shrink-0 transition-colors hover:bg-primary/20"
+                              title="Add to Epifai"
+                              data-testid={`button-claim-${n.name}`}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">

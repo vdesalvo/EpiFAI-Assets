@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useRenameChart, useGoToChart, useCreateNameFromChart } from "@/hooks/use-excel";
+import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useRenameChart, useGoToChart, useCreateNameFromChart } from "@/hooks/use-excel";
 import { NameList } from "@/components/NameList";
 import { NameEditor } from "@/components/NameEditor";
 import { FullPageLoader, LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -114,6 +114,7 @@ export default function Home() {
   const updateName = useUpdateName();
   const deleteName = useDeleteName();
   const goToName = useGoToName();
+  const claimName = useClaimName();
   const renameChart = useRenameChart();
   const goToChart = useGoToChart();
   const createNameFromChart = useCreateNameFromChart();
@@ -193,6 +194,17 @@ export default function Home() {
     goToName.mutate({ name: name.name, scope: name.scope }, {
       onError: (err: any) => {
         toast({ variant: "destructive", title: "Go To failed", description: err?.message || "Could not navigate to this name" });
+      }
+    });
+  };
+
+  const handleClaimName = (name: ExcelName) => {
+    claimName.mutate({ name: name.name, scope: name.scope }, {
+      onSuccess: () => {
+        toast({ description: `"${name.name}" added to Epifai` });
+      },
+      onError: (err: any) => {
+        toast({ variant: "destructive", title: "Error", description: err?.message || "Could not add to Epifai" });
       }
     });
   };
@@ -281,6 +293,7 @@ export default function Home() {
                     onEdit={handleEditName}
                     onDelete={handleDeleteName}
                     onGoTo={handleGoToName}
+                    onClaim={handleClaimName}
                     pendingDeleteName={pendingDelete?.name || null}
                   />
                 </motion.div>

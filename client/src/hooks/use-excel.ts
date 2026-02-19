@@ -44,6 +44,15 @@ export function useGoToName() {
   });
 }
 
+export function useClaimName() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, scope }: { name: string; scope: string }) =>
+      namesSvc.claimAsEpifai(name, scope),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-names"] }),
+  });
+}
+
 // === CHARTS HOOKS ===
 
 export function useCharts() {

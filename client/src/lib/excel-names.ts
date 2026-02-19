@@ -251,6 +251,21 @@ export async function getAllNames(): Promise<ExcelName[]> {
   }
 }
 
+export async function claimAsEpifai(name: string, scope: string): Promise<void> {
+  return Excel.run(async (ctx) => {
+    const item = scope && scope !== "Workbook"
+      ? ctx.workbook.worksheets.getItem(scope).names.getItem(name)
+      : ctx.workbook.names.getItem(name);
+    item.load("comment");
+    await ctx.sync();
+    const current = item.comment || "";
+    if (!current.includes(EPIFAI_TAG)) {
+      item.comment = current ? `${current} ${EPIFAI_TAG}` : EPIFAI_TAG;
+      await ctx.sync();
+    }
+  });
+}
+
 export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedRef = "", dynamicRef = "", lastColOnly = false): Promise<void> {
   return Excel.run(async (ctx) => {
     const raw = formula.replace(/^=/, "");
