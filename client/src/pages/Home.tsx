@@ -124,7 +124,9 @@ export default function Home() {
     try {
       const createdName = await createNameFromChart.mutateAsync({ sheet: chart.sheet, chartName: chart.name, title: chart.title });
       toast({ title: "Created", description: `Named range "${createdName}" created from chart data` });
-      refetchNames();
+      await new Promise(r => setTimeout(r, 300));
+      await refetchNames();
+      setActiveTab("names");
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message || "Could not create name from chart" });
     }
