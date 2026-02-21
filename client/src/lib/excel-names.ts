@@ -5,6 +5,7 @@ const SKIP_TAG_RE = /\[skip:(\d+),(\d+)\]/;
 const FIXREF_TAG_RE = /\[fixref:([^\]]+)\]/;
 const DYNREF_TAG_RE = /\[dynref:([^\]]+)\]/;
 const LASTCOL_TAG = "[lastcol]";
+const LASTROW_TAG = "[lastrow]";
 
 export function parseSkipTag(comment: string): { skipRows: number; skipCols: number } {
   const m = comment.match(SKIP_TAG_RE);
@@ -44,6 +45,14 @@ export function buildLastColTag(lastColOnly: boolean): string {
   return lastColOnly ? LASTCOL_TAG : "";
 }
 
+export function parseLastRowTag(comment: string): boolean {
+  return comment.includes(LASTROW_TAG);
+}
+
+export function buildLastRowTag(lastRowOnly: boolean): string {
+  return lastRowOnly ? LASTROW_TAG : "";
+}
+
 export function stripMetaTags(comment: string): string {
   return comment
     .replace(EPIFAI_TAG, "")
@@ -51,6 +60,7 @@ export function stripMetaTags(comment: string): string {
     .replace(FIXREF_TAG_RE, "")
     .replace(DYNREF_TAG_RE, "")
     .replace(LASTCOL_TAG, "")
+    .replace(LASTROW_TAG, "")
     .trim();
 }
 
@@ -71,6 +81,7 @@ export interface ExcelName {
   fixedRef: string;
   dynamicRef: string;
   lastColOnly: boolean;
+  lastRowOnly: boolean;
 }
 
 export interface UpdateNameParams {
@@ -82,6 +93,7 @@ export interface UpdateNameParams {
   fixedRef?: string;
   dynamicRef?: string;
   lastColOnly?: boolean;
+  lastRowOnly?: boolean;
 }
 
 export interface SelectionData {
@@ -139,6 +151,7 @@ function buildExcelName(item: any, scope: string, address: string, values?: any[
     fixedRef: parseFixedRefTag(rawComment),
     dynamicRef: parseDynamicRefTag(rawComment),
     lastColOnly: parseLastColTag(rawComment),
+    lastRowOnly: parseLastRowTag(rawComment),
   };
 }
 
@@ -255,9 +268,9 @@ export async function getAllNames(): Promise<ExcelName[]> {
     if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
        console.warn("Mocking Excel Data for Development");
        return [
-         { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid", origin: "epifai" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false },
-         { name: "Expenses_Q1", type: "Range", value: 500, formula: "=Sheet1!$B$2", comment: "", visible: true, scope: "Workbook", address: "Sheet1!$B$2", status: "valid", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false },
-         { name: "Broken_Ref", type: "Range", value: "#REF!", formula: "=Sheet1!$Z$99", comment: "Old ref", visible: true, scope: "Workbook", address: "", status: "broken", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false }
+         { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid", origin: "epifai" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false },
+         { name: "Expenses_Q1", type: "Range", value: 500, formula: "=Sheet1!$B$2", comment: "", visible: true, scope: "Workbook", address: "Sheet1!$B$2", status: "valid", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false },
+         { name: "Broken_Ref", type: "Range", value: "#REF!", formula: "=Sheet1!$Z$99", comment: "Old ref", visible: true, scope: "Workbook", address: "", status: "broken", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false }
        ];
     }
     throw error;
@@ -279,7 +292,7 @@ export async function claimAsEpifai(name: string, scope: string): Promise<void> 
   });
 }
 
-export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedRef = "", dynamicRef = "", lastColOnly = false): Promise<void> {
+export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedRef = "", dynamicRef = "", lastColOnly = false, lastRowOnly = false): Promise<void> {
   return Excel.run(async (ctx) => {
     const raw = formula.replace(/^=/, "");
     const hasFunction = /[A-Z]+\(/.test(raw.toUpperCase());
@@ -314,7 +327,8 @@ export async function addName(name: string, formula: string, comment = "", scope
     const fixRefTag = buildFixedRefTag(fixedRef);
     const dynRefTag = buildDynamicRefTag(dynamicRef);
     const lastColTag = buildLastColTag(lastColOnly);
-    const parts = [comment, skipTag, fixRefTag, dynRefTag, lastColTag, EPIFAI_TAG].filter(Boolean);
+    const lastRowTag = buildLastRowTag(lastRowOnly);
+    const parts = [comment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, EPIFAI_TAG].filter(Boolean);
     item.comment = parts.join(" ");
     await ctx.sync();
   });
@@ -337,11 +351,13 @@ export async function updateName(name: string, updates: UpdateNameParams): Promi
     const fRef = updates.fixedRef !== undefined ? updates.fixedRef : parseFixedRefTag(oldRaw);
     const dRef = updates.dynamicRef !== undefined ? updates.dynamicRef : parseDynamicRefTag(oldRaw);
     const lCol = updates.lastColOnly !== undefined ? updates.lastColOnly : parseLastColTag(oldRaw);
+    const lRow = updates.lastRowOnly !== undefined ? updates.lastRowOnly : parseLastRowTag(oldRaw);
     const skipTag = buildSkipTag(skipR, skipC);
     const fixRefTag = buildFixedRefTag(fRef);
     const dynRefTag = buildDynamicRefTag(dRef);
     const lastColTag = buildLastColTag(lCol);
-    const parts = [userComment, skipTag, fixRefTag, dynRefTag, lastColTag, hadEpifaiTag ? EPIFAI_TAG : ""].filter(Boolean);
+    const lastRowTag = buildLastRowTag(lRow);
+    const parts = [userComment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, hadEpifaiTag ? EPIFAI_TAG : ""].filter(Boolean);
     item.comment = parts.join(" ");
     
     if (updates.newName && updates.newName !== item.name) {

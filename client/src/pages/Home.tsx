@@ -164,13 +164,13 @@ export default function Home() {
     }
   };
 
-  const handleSaveName = async (data: { name: string; refersTo: string; comment: string; newName?: string; skipRows?: number; skipCols?: number; fixedRef?: string; dynamicRef?: string; lastColOnly?: boolean }) => {
+  const handleSaveName = async (data: { name: string; refersTo: string; comment: string; newName?: string; skipRows?: number; skipCols?: number; fixedRef?: string; dynamicRef?: string; lastColOnly?: boolean; lastRowOnly?: boolean }) => {
     try {
       if (editTarget) {
-        await updateName.mutateAsync({ name: editTarget.name, updates: { ...data, skipRows: data.skipRows, skipCols: data.skipCols, fixedRef: data.fixedRef, dynamicRef: data.dynamicRef, lastColOnly: data.lastColOnly } });
+        await updateName.mutateAsync({ name: editTarget.name, updates: { ...data, skipRows: data.skipRows, skipCols: data.skipCols, fixedRef: data.fixedRef, dynamicRef: data.dynamicRef, lastColOnly: data.lastColOnly, lastRowOnly: data.lastRowOnly } });
         toast({ title: "Updated", description: `Updated range "${data.newName || data.name}"` });
       } else {
-        await addName.mutateAsync({ name: data.name, formula: data.refersTo, comment: data.comment, skipRows: data.skipRows || 0, skipCols: data.skipCols || 0, fixedRef: data.fixedRef || "", dynamicRef: data.dynamicRef || "", lastColOnly: data.lastColOnly || false });
+        await addName.mutateAsync({ name: data.name, formula: data.refersTo, comment: data.comment, skipRows: data.skipRows || 0, skipCols: data.skipCols || 0, fixedRef: data.fixedRef || "", dynamicRef: data.dynamicRef || "", lastColOnly: data.lastColOnly || false, lastRowOnly: data.lastRowOnly || false });
         toast({ title: "Created", description: `Created range "${data.name}"` });
       }
       setView("list");
