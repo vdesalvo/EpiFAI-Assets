@@ -68,6 +68,13 @@ export function useSelectionData() {
   });
 }
 
+export function useExportName() {
+  return useMutation({
+    mutationFn: ({ name, scope }: { name: string; scope: string }) =>
+      namesSvc.exportNameToSheet({ name, scope }),
+  });
+}
+
 // === CHARTS HOOKS ===
 
 export function useCharts() {

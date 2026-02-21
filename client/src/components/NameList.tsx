@@ -15,7 +15,8 @@ import {
   LayoutGrid,
   Maximize,
   Columns,
-  Loader2
+  Loader2,
+  FileSpreadsheet
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,12 +28,14 @@ interface NameListProps {
   onCreate: () => void;
   onVisualPicker?: () => void;
   onClaim?: (name: ExcelName) => void;
+  onExport?: (name: ExcelName) => void;
+  isExporting?: boolean;
   onDeleteBroken?: () => void;
   isDeletingBroken?: boolean;
   pendingDeleteName?: string | null;
 }
 
-export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onVisualPicker, onClaim, onDeleteBroken, isDeletingBroken, pendingDeleteName }: NameListProps) {
+export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onVisualPicker, onClaim, onExport, isExporting, onDeleteBroken, isDeletingBroken, pendingDeleteName }: NameListProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "epifai" | "excel" | "broken">("epifai");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -230,6 +233,16 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onVisualPi
                           data-testid={`button-edit-${n.name}`}
                         >
                           <Edit className="w-3 h-3 mr-1.5" /> Edit
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="text-xs"
+                          onClick={(e) => { e.stopPropagation(); onExport?.(n); }}
+                          disabled={isExporting || n.status === "broken"}
+                          data-testid={`button-export-${n.name}`}
+                        >
+                          {isExporting ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <FileSpreadsheet className="w-3 h-3 mr-1.5" />} Export
                         </Button>
                         <Button 
                           size="sm" 

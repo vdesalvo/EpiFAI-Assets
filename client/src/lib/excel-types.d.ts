@@ -19,7 +19,9 @@ declare namespace Excel {
   interface WorksheetCollection {
     items: Worksheet[];
     getItem(name: string): Worksheet;
+    getItemOrNullObject(name: string): Worksheet;
     getActiveWorksheet(): Worksheet;
+    add(name?: string): Worksheet;
     load(propertyNames?: string | string[]): void;
   }
 
@@ -27,8 +29,11 @@ declare namespace Excel {
     name: string;
     names: NamedItemCollection;
     charts: ChartCollection;
+    isNullObject: boolean;
     activate(): void;
     getRange(address?: string): Range;
+    getRangeByIndexes(startRow: number, startColumn: number, rowCount: number, columnCount: number): Range;
+    getUsedRangeOrNullObject(valuesOnly?: boolean): Range;
     onSelectionChanged: EventHandlers;
     load(propertyNames?: string | string[]): void;
   }
@@ -53,11 +58,28 @@ declare namespace Excel {
     load(propertyNames?: string | string[]): void;
   }
 
+  interface RangeFormat {
+    font: RangeFont;
+    autofitColumns(): void;
+    autofitRows(): void;
+  }
+
+  interface RangeFont {
+    bold: boolean;
+    color: string;
+    size: number;
+  }
+
   interface Range {
     address: string;
     values: any[][];
     worksheet: Worksheet;
     isNullObject: boolean;
+    columnCount: number;
+    columnIndex: number;
+    rowCount: number;
+    rowIndex: number;
+    format: RangeFormat;
     load(propertyNames?: string | string[]): void;
     select(): void;
     getBoundingRect(anotherRange: Range | string): Range;

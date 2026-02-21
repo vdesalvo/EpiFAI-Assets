@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useDeleteBrokenNames, useRenameChart, useGoToChart, useCreateNameFromChart } from "@/hooks/use-excel";
+import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useDeleteBrokenNames, useExportName, useRenameChart, useGoToChart, useCreateNameFromChart } from "@/hooks/use-excel";
 import { NameList } from "@/components/NameList";
 import { NameEditor } from "@/components/NameEditor";
 import { RangePicker } from "@/components/RangePicker";
@@ -120,6 +120,7 @@ export default function Home() {
   const renameChart = useRenameChart();
   const goToChart = useGoToChart();
   const createNameFromChart = useCreateNameFromChart();
+  const exportName = useExportName();
 
   // UI State
   const [view, setView] = useState<"list" | "edit" | "visual-picker">("list");
@@ -213,6 +214,15 @@ export default function Home() {
         toast({ variant: "destructive", title: "Error", description: err?.message || "Could not delete broken names" });
       }
     });
+  };
+
+  const handleExportName = async (name: ExcelName) => {
+    try {
+      const result = await exportName.mutateAsync({ name: name.name, scope: name.scope });
+      toast({ title: "Exported", description: `Exported "${name.name}" (${result.rowCount} rows × ${result.colCount} cols) to Epifai_Export sheet` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Export Error", description: e.message });
+    }
   };
 
   const handleClaimName = (name: ExcelName) => {
@@ -312,6 +322,8 @@ export default function Home() {
                     onDelete={handleDeleteName}
                     onGoTo={handleGoToName}
                     onClaim={handleClaimName}
+                    onExport={handleExportName}
+                    isExporting={exportName.isPending}
                     onDeleteBroken={handleDeleteBroken}
                     isDeletingBroken={deleteBroken.isPending}
                     pendingDeleteName={pendingDelete?.name || null}

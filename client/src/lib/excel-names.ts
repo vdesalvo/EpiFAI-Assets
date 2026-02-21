@@ -546,6 +546,73 @@ export async function selectNameRange(params: { name: string; scope: string }): 
   });
 }
 
+export async function exportNameToSheet(params: { name: string; scope: string }): Promise<{ rowCount: number; colCount: number }> {
+  if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
+    throw new Error("Export requires Excel");
+  }
+  return Excel.run(async (ctx) => {
+    let namedItem;
+    if (params.scope && params.scope !== "Workbook") {
+      namedItem = ctx.workbook.worksheets.getItem(params.scope).names.getItem(params.name);
+    } else {
+      namedItem = ctx.workbook.names.getItem(params.name);
+    }
+
+    const range = namedItem.getRange();
+    range.load("values,address");
+    await ctx.sync();
+
+    const values: any[][] = range.values;
+
+    let exportSheet = ctx.workbook.worksheets.getItemOrNullObject("Epifai_Export");
+    exportSheet.load("isNullObject");
+    await ctx.sync();
+
+    if (exportSheet.isNullObject) {
+      exportSheet = ctx.workbook.worksheets.add("Epifai_Export");
+    }
+
+    const usedRange = exportSheet.getUsedRangeOrNullObject();
+    usedRange.load("isNullObject,columnCount,columnIndex");
+    await ctx.sync();
+
+    let startCol = 0;
+    if (!usedRange.isNullObject) {
+      startCol = usedRange.columnIndex + usedRange.columnCount + 1;
+    }
+
+    if (!values || values.length === 0) {
+      throw new Error("Named range has no data to export");
+    }
+    const rowCount = values.length;
+    const colCount = values[0].length;
+
+    const headerCell = exportSheet.getRangeByIndexes(0, startCol, 1, colCount);
+    if (colCount === 1) {
+      headerCell.values = [[params.name]];
+    } else {
+      const headerRow: any[] = [params.name];
+      for (let i = 1; i < colCount; i++) headerRow.push("");
+      headerCell.values = [headerRow];
+    }
+    headerCell.format.font.bold = true;
+
+    const dataRange = exportSheet.getRangeByIndexes(1, startCol, rowCount, colCount);
+    dataRange.values = values;
+
+    const fullRange = exportSheet.getRangeByIndexes(0, startCol, rowCount + 1, colCount);
+    fullRange.format.autofitColumns();
+
+    exportSheet.activate();
+    await ctx.sync();
+
+    fullRange.select();
+    await ctx.sync();
+
+    return { rowCount, colCount };
+  });
+}
+
 function colToNum(col: string): number {
   let num = 0;
   for (let i = 0; i < col.length; i++) {
