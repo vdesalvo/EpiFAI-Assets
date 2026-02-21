@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { MousePointerClick, Loader2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface RangePickerProps {
   onSave: (data: {
@@ -61,6 +62,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
   const [name, setName] = useState("");
   const [comment, setComment] = useState("");
   const [nameError, setNameError] = useState("");
+  const { toast } = useToast();
 
   const [skippedRows, setSkippedRows] = useState<Set<number>>(new Set());
   const [skippedCols, setSkippedCols] = useState<Set<number>>(new Set());
@@ -78,8 +80,13 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
         setFixedBoundary(0);
         setLastColOnly(false);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to get selection:", e);
+      toast({
+        title: "Could not read selection",
+        description: e?.message || "Make sure you have a range selected in Excel and try again.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }

@@ -549,14 +549,16 @@ function numToCol(num: number): string {
 }
 
 function parseRangeAddress(address: string): { sheet: string; startCol: string; startRow: number; endCol: string; endRow: number } {
-  // Address format: "Sheet1!$A$1:$H$20" or "Sheet1!$A$1"
-  const match = address.match(/^([^!]+)!\$([A-Z]+)\$(\d+)(?::\$([A-Z]+)\$(\d+))?$/);
+  const match = address.match(/^(.+)!\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?$/);
   
   if (!match) {
     throw new Error(`Invalid address format: ${address}`);
   }
 
-  const sheet = match[1];
+  let sheet = match[1];
+  if (sheet.startsWith("'") && sheet.endsWith("'")) {
+    sheet = sheet.slice(1, -1);
+  }
   const startCol = match[2];
   const startRow = parseInt(match[3], 10);
   const endCol = match[4] || startCol;
