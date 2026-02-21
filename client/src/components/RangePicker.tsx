@@ -271,6 +271,11 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
   const hasMoreRows = selectionData ? selectionData.values.length > MAX_PREVIEW_ROWS : false;
   const hasMoreCols = selectionData ? selectionData.colCount > MAX_PREVIEW_COLS : false;
 
+  const lastDynActiveIdx = useMemo(() => {
+    if (!isHybrid || !lastColOnly) return -1;
+    return activeColIndices.length - 1;
+  }, [isHybrid, lastColOnly, activeColIndices]);
+
   return (
     <div className="flex flex-col h-full bg-background p-4 animate-in slide-in-from-right-4 duration-300">
       <div className="mb-4">
@@ -343,6 +348,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                           const activeIdx = activeColIndices.indexOf(ci);
                           const isFixed = !isSkipped && isHybrid && activeIdx >= 0 && activeIdx < fixedBoundary;
                           const isDynamic = !isSkipped && isHybrid && activeIdx >= fixedBoundary;
+                          const isLastDynCol = isDynamic && lastColOnly && activeIdx === lastDynActiveIdx;
 
                           return (
                             <th
@@ -353,9 +359,11 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                                   ? "bg-muted/30 text-muted-foreground/30 line-through"
                                   : isFixed
                                     ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                                    : isDynamic
-                                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                                    : isLastDynCol
+                                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 ring-2 ring-amber-400 ring-inset"
+                                      : isDynamic
+                                        ? "bg-emerald-50 text-emerald-500 dark:bg-emerald-950/10 dark:text-emerald-500"
+                                        : "bg-muted/50 text-muted-foreground hover:bg-muted"
                               )}
                               onClick={() => toggleColSkip(ci)}
                               title={isSkipped ? `Click to include column ${colLetter}` : `Click to skip column ${colLetter}`}
@@ -398,6 +406,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                               const activeIdx = activeColIndices.indexOf(ci);
                               const isFixed = !isDimmed && isHybrid && activeIdx >= 0 && activeIdx < fixedBoundary;
                               const isDynamic = !isDimmed && isHybrid && activeIdx >= fixedBoundary;
+                              const isLastDynCol = isDynamic && lastColOnly && activeIdx === lastDynActiveIdx;
                               const cellVal = selectionData.values[ri]?.[ci];
                               const displayVal = cellVal === null || cellVal === undefined || cellVal === "" ? "" : String(cellVal);
 
@@ -410,9 +419,11 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                                       ? "bg-muted/10 text-muted-foreground/20"
                                       : isFixed
                                         ? "bg-blue-50/50 dark:bg-blue-950/20"
-                                        : isDynamic
-                                          ? "bg-emerald-50/50 dark:bg-emerald-950/20"
-                                          : ""
+                                        : isLastDynCol
+                                          ? "bg-amber-50/50 dark:bg-amber-950/20"
+                                          : isDynamic
+                                            ? "bg-emerald-50/20 dark:bg-emerald-950/10"
+                                            : ""
                                   )}
                                   title={displayVal}
                                   data-testid={`cell-${ri}-${ci}`}
@@ -450,10 +461,12 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                   Click a column below to set where fixed columns end and dynamic columns begin. Columns to the left are fixed (blue), to the right are dynamic (green).
                 </p>
                 <div className="flex gap-0.5 flex-wrap">
-                  {activeColIndices.slice(0, previewCols).map((colIdx, activePos) => {
+                  {activeColIndices.map((colIdx, activePos) => {
                     const colLetter = selectionData.columns[colIdx];
                     const isBeforeBoundary = isHybrid && activePos < fixedBoundary;
                     const isAtBoundary = isHybrid && activePos === fixedBoundary - 1;
+                    const isAfterBoundary = isHybrid && activePos >= fixedBoundary;
+                    const isLastDyn = isAfterBoundary && lastColOnly && activePos === lastDynActiveIdx;
 
                     return (
                       <button
@@ -463,9 +476,11 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                           "px-2 py-1 text-[10px] font-bold rounded border transition-all",
                           isBeforeBoundary
                             ? "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700"
-                            : isHybrid
-                              ? "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700"
-                              : "bg-muted text-muted-foreground border-border hover:bg-accent",
+                            : isLastDyn
+                              ? "bg-amber-100 text-amber-700 border-amber-400 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700 ring-2 ring-amber-400 ring-offset-1"
+                              : isAfterBoundary
+                                ? "bg-emerald-50 text-emerald-400 border-emerald-200 dark:bg-emerald-950/10 dark:text-emerald-600 dark:border-emerald-800"
+                                : "bg-muted text-muted-foreground border-border hover:bg-accent",
                           isAtBoundary && "ring-2 ring-blue-400 ring-offset-1"
                         )}
                         title={`Set split after column ${colLetter}`}
@@ -477,13 +492,24 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                   })}
                 </div>
                 {isHybrid && (
-                  <div className="flex gap-3 text-[10px]">
+                  <div className="flex gap-3 flex-wrap text-[10px]">
                     <span className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-sm bg-blue-200 border border-blue-300" /> Fixed ({summary?.type === "hybrid" ? summary.fixedCols.join(", ") : ""})
                     </span>
-                    <span className="flex items-center gap-1">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200 border border-emerald-300" /> Dynamic ({summary?.type === "hybrid" ? summary.dynamicCols.join(", ") : ""})
-                    </span>
+                    {lastColOnly && summary?.type === "hybrid" ? (
+                      <>
+                        <span className="flex items-center gap-1">
+                          <span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-200" /> Dynamic ({summary.dynamicCols.slice(0, -1).join(", ") || "—"})
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-2.5 h-2.5 rounded-sm bg-amber-200 border border-amber-400" /> Last col ({summary.dynamicCols[summary.dynamicCols.length - 1]})
+                        </span>
+                      </>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200 border border-emerald-300" /> Dynamic ({summary?.type === "hybrid" ? summary.dynamicCols.join(", ") : ""})
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
