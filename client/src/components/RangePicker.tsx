@@ -436,6 +436,8 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                               const isFixed = !isDimmed && isHybrid && activeIdx >= 0 && activeIdx < fixedBoundary;
                               const isDynamic = !isDimmed && isHybrid && activeIdx >= fixedBoundary;
                               const isLastDynCol = isDynamic && lastColOnly && activeIdx === lastDynActiveIdx;
+                              const isCellLastRow = !isDimmed && isLastDynRow;
+                              const isCellLastIntersect = isCellLastRow && isLastDynCol;
                               const cellVal = selectionData.values[ri]?.[ci];
                               const displayVal = cellVal === null || cellVal === undefined || cellVal === "" ? "" : String(cellVal);
 
@@ -446,13 +448,17 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                                     "px-1.5 py-1 border-b border-r truncate max-w-[80px] transition-all",
                                     isDimmed
                                       ? "bg-muted/10 text-muted-foreground/20"
-                                      : isFixed
-                                        ? "bg-blue-50/50 dark:bg-blue-950/20"
-                                        : isLastDynCol
-                                          ? "bg-amber-50/50 dark:bg-amber-950/20"
-                                          : isDynamic
-                                            ? "bg-emerald-50/20 dark:bg-emerald-950/10"
-                                            : ""
+                                      : isCellLastIntersect
+                                        ? "bg-amber-100/80 dark:bg-amber-900/30 ring-1 ring-inset ring-amber-400"
+                                        : isCellLastRow
+                                          ? "bg-amber-50/60 dark:bg-amber-950/20"
+                                          : isFixed
+                                            ? "bg-blue-50/50 dark:bg-blue-950/20"
+                                            : isLastDynCol
+                                              ? "bg-amber-50/50 dark:bg-amber-950/20"
+                                              : isDynamic
+                                                ? "bg-emerald-50/20 dark:bg-emerald-950/10"
+                                                : ""
                                   )}
                                   title={displayVal}
                                   data-testid={`cell-${ri}-${ci}`}
