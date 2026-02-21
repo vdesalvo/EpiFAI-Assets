@@ -560,25 +560,87 @@ export async function exportNameToSheet(params: { name: string; scope: string })
 
     let values: any[][];
 
-    try {
-      const rangeOrNull = namedItem.getRangeOrNullObject();
-      rangeOrNull.load("isNullObject,values");
-      await ctx.sync();
+    namedItem.load("formula");
+    await ctx.sync();
 
-      if (!rangeOrNull.isNullObject) {
-        values = rangeOrNull.values;
-      } else {
-        throw new Error("fallback");
-      }
-    } catch (_) {
+    const formula = namedItem.formula;
+    const rawFormula = formula.replace(/^=/, "");
+    const isDynamic = /OFFSET\(|INDIRECT\(|INDEX\(/i.test(rawFormula);
+
+    if (!isDynamic) {
       try {
-        const activeSheet = ctx.workbook.worksheets.getActiveWorksheet();
-        const nameRange = activeSheet.getRange(params.name);
-        nameRange.load("values");
+        const range = namedItem.getRange();
+        range.load("values");
         await ctx.sync();
-        values = nameRange.values;
-      } catch (__) {
-        throw new Error("Could not resolve this named range for export. Try using 'Go To' first to navigate to it, then export again.");
+        values = range.values;
+      } catch (e) {
+        throw new Error("Could not read the named range values.");
+      }
+    } else {
+      const formulaParts = splitFormulaTopLevel(rawFormula);
+      const partValues: any[][][] = [];
+      const tempNames: string[] = [];
+
+      try {
+        for (let i = 0; i < formulaParts.length; i++) {
+          const part = formulaParts[i].trim();
+          const hasDynFunc = /OFFSET\(|INDIRECT\(|INDEX\(/i.test(part);
+
+          if (!hasDynFunc) {
+            const sheetMatch = part.match(/^(?:'([^']+)'|([A-Za-z0-9_]+))!/);
+            if (sheetMatch) {
+              const sheetName = sheetMatch[1] || sheetMatch[2];
+              const ref = part.substring(sheetMatch[0].length);
+              const partRange = ctx.workbook.worksheets.getItem(sheetName).getRange(ref);
+              partRange.load("values");
+              await ctx.sync();
+              partValues.push(partRange.values);
+            }
+          } else {
+            const tempName = `_epifai_tmp_${Date.now()}_${i}`;
+            tempNames.push(tempName);
+            ctx.workbook.names.add(tempName, `=${part}`);
+            await ctx.sync();
+
+            const tempItem = ctx.workbook.names.getItem(tempName);
+            const resolved = tempItem.getRangeOrNullObject();
+            resolved.load("isNullObject,values");
+            await ctx.sync();
+
+            if (!resolved.isNullObject) {
+              partValues.push(resolved.values);
+            }
+
+            tempItem.delete();
+            await ctx.sync();
+          }
+        }
+
+        if (partValues.length === 0) {
+          throw new Error("No data could be read from the named range.");
+        }
+
+        const maxRows = Math.max(...partValues.map(v => v.length));
+        const combined: any[][] = [];
+        for (let r = 0; r < maxRows; r++) {
+          const row: any[] = [];
+          for (const pv of partValues) {
+            const pvRow = pv[r] || [];
+            row.push(...pvRow);
+          }
+          combined.push(row);
+        }
+        values = combined;
+      } catch (err: any) {
+        for (const tn of tempNames) {
+          try {
+            const c = ctx.workbook.names.getItem(tn);
+            c.delete();
+            await ctx.sync();
+          } catch (_) {}
+        }
+        if (err.message === "No data could be read from the named range.") throw err;
+        throw new Error("Could not resolve this dynamic named range for export.");
       }
     }
 
@@ -629,6 +691,28 @@ export async function exportNameToSheet(params: { name: string; scope: string })
 
     return { rowCount, colCount };
   });
+}
+
+function splitFormulaTopLevel(formula: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of formula) {
+    if (ch === "(") {
+      depth++;
+      current += ch;
+    } else if (ch === ")") {
+      depth--;
+      current += ch;
+    } else if (ch === "," && depth === 0) {
+      parts.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current) parts.push(current);
+  return parts;
 }
 
 function colToNum(col: string): number {
