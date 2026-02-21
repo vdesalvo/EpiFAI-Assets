@@ -558,11 +558,29 @@ export async function exportNameToSheet(params: { name: string; scope: string })
       namedItem = ctx.workbook.names.getItem(params.name);
     }
 
-    const range = namedItem.getRange();
-    range.load("values,address");
-    await ctx.sync();
+    let values: any[][];
 
-    const values: any[][] = range.values;
+    try {
+      const rangeOrNull = namedItem.getRangeOrNullObject();
+      rangeOrNull.load("isNullObject,values");
+      await ctx.sync();
+
+      if (!rangeOrNull.isNullObject) {
+        values = rangeOrNull.values;
+      } else {
+        throw new Error("fallback");
+      }
+    } catch (_) {
+      try {
+        const activeSheet = ctx.workbook.worksheets.getActiveWorksheet();
+        const nameRange = activeSheet.getRange(params.name);
+        nameRange.load("values");
+        await ctx.sync();
+        values = nameRange.values;
+      } catch (__) {
+        throw new Error("Could not resolve this named range for export. Try using 'Go To' first to navigate to it, then export again.");
+      }
+    }
 
     let exportSheet = ctx.workbook.worksheets.getItemOrNullObject("Epifai_Export");
     exportSheet.load("isNullObject");
