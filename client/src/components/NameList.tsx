@@ -118,6 +118,12 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onVisualPi
         </div>
       </div>
 
+      {/* Debug: all raw names received */}
+      <div className="px-3 py-1.5 bg-amber-50 border-b border-amber-200 text-[10px] text-amber-800 font-mono">
+        <strong>DEBUG ({names.length} total):</strong>{" "}
+        {names.map(n => `${n.name}[${n.origin}]`).join(", ") || "none"}
+      </div>
+
       {/* List */}
       <ScrollArea className="flex-1">
         <div className="flex flex-col">

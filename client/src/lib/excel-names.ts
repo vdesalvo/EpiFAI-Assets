@@ -165,7 +165,12 @@ export async function getAllNames(): Promise<ExcelName[]> {
       sheets.load("items/name");
       await ctx.sync();
 
-      console.log(`[Epifai] Loaded ${names.items.length} workbook-level names:`, names.items.map(i => i.name));
+      const allNamesList = names.items.map(i => i.name);
+      console.log(`[Epifai] Loaded ${names.items.length} workbook-level names:`, allNamesList);
+
+      try {
+        (window as any).__epifai_debug_names = allNamesList;
+      } catch {}
 
       const results: ExcelName[] = [];
 
