@@ -70,6 +70,8 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
   const [fixedBoundary, setFixedBoundary] = useState<number>(0);
   const [lastColOnly, setLastColOnly] = useState(false);
   const [lastRowOnly, setLastRowOnly] = useState(false);
+  const [dynamicCols, setDynamicCols] = useState(false);
+  const [dynamicRows, setDynamicRows] = useState(false);
 
   const handlePick = async () => {
     setLoading(true);
@@ -82,6 +84,8 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
         setFixedBoundary(0);
         setLastColOnly(false);
         setLastRowOnly(false);
+        setDynamicCols(false);
+        setDynamicRows(false);
       }
     } catch (e: any) {
       console.error("Failed to get selection:", e);
@@ -236,18 +240,31 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
     const colCountRange = `${sp}$${dynFirst}$${dataStartRow}:$${bufferCol}$${dataStartRow}`;
 
     let formula: string;
-    const rowExpr = summary.lastRowOnly
-      ? `COUNTA(${rowCountRange})-1`
-      : "0";
-    const rowHeight = summary.lastRowOnly
-      ? "1"
-      : `COUNTA(${rowCountRange})`;
-    const colExpr = summary.lastColOnly
-      ? `COUNTA(${colCountRange})-1`
-      : "0";
-    const colWidth = summary.lastColOnly
-      ? "1"
-      : `COUNTA(${colCountRange})`;
+    let rowExpr: string;
+    let rowHeight: string;
+    if (!dynamicRows) {
+      rowExpr = "0";
+      rowHeight = String(selectionData.endRow - dataStartRow + 1);
+    } else if (summary.lastRowOnly) {
+      rowExpr = `COUNTA(${rowCountRange})-1`;
+      rowHeight = "1";
+    } else {
+      rowExpr = "0";
+      rowHeight = `COUNTA(${rowCountRange})`;
+    }
+
+    let colExpr: string;
+    let colWidth: string;
+    if (!dynamicCols) {
+      colExpr = "0";
+      colWidth = String(colToNum(dynLast) - colToNum(dynFirst) + 1);
+    } else if (summary.lastColOnly) {
+      colExpr = `COUNTA(${colCountRange})-1`;
+      colWidth = "1";
+    } else {
+      colExpr = "0";
+      colWidth = `COUNTA(${colCountRange})`;
+    }
 
     formula = `=${fixedPart},OFFSET(${dynAnchor},${rowExpr},${colExpr},${rowHeight},${colWidth})`;
 
@@ -260,7 +277,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
       lastColOnly: summary.lastColOnly,
       lastRowOnly: summary.lastRowOnly,
     };
-  }, [selectionData, summary]);
+  }, [selectionData, summary, dynamicRows, dynamicCols]);
 
   const handleSave = () => {
     const err = validateName(name);
@@ -287,14 +304,14 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
   const hasMoreCols = selectionData ? selectionData.colCount > MAX_PREVIEW_COLS : false;
 
   const lastDynActiveIdx = useMemo(() => {
-    if (!isHybrid || !lastColOnly) return -1;
+    if (!isHybrid || !dynamicCols || !lastColOnly) return -1;
     return activeColIndices.length - 1;
-  }, [isHybrid, lastColOnly, activeColIndices]);
+  }, [isHybrid, dynamicCols, lastColOnly, activeColIndices]);
 
   const lastDynRowIdx = useMemo(() => {
-    if (!isHybrid || !lastRowOnly) return -1;
+    if (!isHybrid || !dynamicRows || !lastRowOnly) return -1;
     return activeRowIndices.length - 1;
-  }, [isHybrid, lastRowOnly, activeRowIndices]);
+  }, [isHybrid, dynamicRows, lastRowOnly, activeRowIndices]);
 
   return (
     <div className="flex flex-col h-full bg-background p-4 animate-in slide-in-from-right-4 duration-300">
@@ -406,7 +423,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                         const isRowSkipped = skippedRows.has(ri);
                         const activeRowIdx = activeRowIndices.indexOf(ri);
                         const isActiveRow = !isRowSkipped && activeRowIdx >= 0;
-                        const isLastDynRow = isActiveRow && isHybrid && lastRowOnly && activeRowIdx === lastDynRowIdx;
+                        const isLastDynRow = isActiveRow && isHybrid && dynamicRows && lastRowOnly && activeRowIdx === lastDynRowIdx;
 
                         return (
                           <tr key={ri}>
@@ -417,7 +434,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                                   ? "bg-muted/30 text-muted-foreground/30 line-through"
                                   : isLastDynRow
                                     ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                                    : isActiveRow && isHybrid
+                                    : isActiveRow && isHybrid && dynamicRows
                                       ? lastRowOnly
                                         ? "bg-emerald-50 text-emerald-500 dark:bg-emerald-950/10 dark:text-emerald-500"
                                         : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
@@ -531,7 +548,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                     <span className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-sm bg-blue-200 border border-blue-300" /> Fixed ({summary?.type === "hybrid" ? summary.fixedCols.join(", ") : ""})
                     </span>
-                    {lastColOnly && summary?.type === "hybrid" ? (
+                    {lastColOnly && dynamicCols && summary?.type === "hybrid" ? (
                       <>
                         <span className="flex items-center gap-1">
                           <span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-200" /> Dynamic ({summary.dynamicCols.slice(0, -1).join(", ") || "—"})
@@ -542,7 +559,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                       </>
                     ) : (
                       <span className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200 border border-emerald-300" /> Dynamic ({summary?.type === "hybrid" ? summary.dynamicCols.join(", ") : ""})
+                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200 border border-emerald-300" /> Dynamic{dynamicCols ? " (auto-expand)" : ""} ({summary?.type === "hybrid" ? summary.dynamicCols.join(", ") : ""})
                       </span>
                     )}
                   </div>
@@ -554,28 +571,61 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
               <div className="bg-muted/30 border rounded-md p-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label htmlFor="vp-last-col" className="text-[11px] text-muted-foreground">Last column only</Label>
-                    <p className="text-[9px] text-muted-foreground leading-snug">Only include the rightmost dynamic column</p>
+                    <Label htmlFor="vp-dynamic-cols" className="text-[11px] text-muted-foreground">Dynamic Columns</Label>
+                    <p className="text-[9px] text-muted-foreground leading-snug">Columns auto-expand as new data is added</p>
                   </div>
                   <Switch
-                    id="vp-last-col"
-                    checked={lastColOnly}
-                    onCheckedChange={setLastColOnly}
-                    data-testid="switch-vp-last-col"
+                    id="vp-dynamic-cols"
+                    checked={dynamicCols}
+                    onCheckedChange={(v) => { setDynamicCols(v); if (!v) setLastColOnly(false); }}
+                    data-testid="switch-vp-dynamic-cols"
                   />
                 </div>
+                {dynamicCols && (
+                  <div className="flex items-center justify-between pl-4 border-l-2 border-emerald-300 dark:border-emerald-700">
+                    <div>
+                      <Label htmlFor="vp-last-col" className="text-[11px] text-muted-foreground">Last column only</Label>
+                      <p className="text-[9px] text-muted-foreground leading-snug">Only include the rightmost dynamic column</p>
+                    </div>
+                    <Switch
+                      id="vp-last-col"
+                      checked={lastColOnly}
+                      onCheckedChange={setLastColOnly}
+                      data-testid="switch-vp-last-col"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isHybrid && (
+              <div className="bg-muted/30 border rounded-md p-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <Label htmlFor="vp-last-row" className="text-[11px] text-muted-foreground">Last row only</Label>
-                    <p className="text-[9px] text-muted-foreground leading-snug">Only include the bottom-most dynamic row</p>
+                    <Label htmlFor="vp-dynamic-rows" className="text-[11px] text-muted-foreground">Dynamic Rows</Label>
+                    <p className="text-[9px] text-muted-foreground leading-snug">Rows auto-expand as new data is added</p>
                   </div>
                   <Switch
-                    id="vp-last-row"
-                    checked={lastRowOnly}
-                    onCheckedChange={setLastRowOnly}
-                    data-testid="switch-vp-last-row"
+                    id="vp-dynamic-rows"
+                    checked={dynamicRows}
+                    onCheckedChange={(v) => { setDynamicRows(v); if (!v) setLastRowOnly(false); }}
+                    data-testid="switch-vp-dynamic-rows"
                   />
                 </div>
+                {dynamicRows && (
+                  <div className="flex items-center justify-between pl-4 border-l-2 border-emerald-300 dark:border-emerald-700">
+                    <div>
+                      <Label htmlFor="vp-last-row" className="text-[11px] text-muted-foreground">Last row only</Label>
+                      <p className="text-[9px] text-muted-foreground leading-snug">Only include the bottom-most dynamic row</p>
+                    </div>
+                    <Switch
+                      id="vp-last-row"
+                      checked={lastRowOnly}
+                      onCheckedChange={setLastRowOnly}
+                      data-testid="switch-vp-last-row"
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -595,12 +645,15 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
                         <span className="text-blue-600 font-semibold">Fixed:</span> {summary.fixedCols.join(", ")}
                       </p>
                       <p>
-                        <span className="text-emerald-600 font-semibold">Dynamic:</span> {summary.dynamicCols.join(", ")}
-                        {summary.lastColOnly ? " (last col only)" : " (auto-expand)"}
+                        <span className="text-emerald-600 font-semibold">Columns:</span> {summary.dynamicCols.join(", ")}
+                        {dynamicCols
+                          ? (summary.lastColOnly ? " — auto-expand (last col only)" : " — auto-expand")
+                          : " — fixed width"}
                       </p>
-                      {summary.lastRowOnly && (
+                      {dynamicRows && (
                         <p>
-                          <span className="text-amber-600 font-semibold">Rows:</span> last row only
+                          <span className="text-amber-600 font-semibold">Rows:</span>{" "}
+                          {summary.lastRowOnly ? "auto-expand (last row only)" : "auto-expand"}
                         </p>
                       )}
                     </>
