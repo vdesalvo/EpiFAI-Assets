@@ -2,7 +2,6 @@ import { useState } from "react";
 import { ExcelName, selectNameRange } from "@/lib/excel-names";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { 
   Trash2, 
@@ -118,14 +117,8 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onVisualPi
         </div>
       </div>
 
-      {/* Debug: all raw names received */}
-      <div className="px-3 py-1.5 bg-amber-50 border-b border-amber-200 text-[10px] text-amber-800 font-mono">
-        <strong>DEBUG ({names.length} total):</strong>{" "}
-        {names.map(n => `${n.name}[${n.origin}]`).join(", ") || "none"}
-      </div>
-
       {/* List */}
-      <ScrollArea className="flex-1">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="flex flex-col">
           {filteredNames.length === 0 && (
             <div className="p-8 text-center text-muted-foreground text-sm">
@@ -268,7 +261,7 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onVisualPi
             );
           })}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Footer */}
       <div className="p-3 border-t bg-muted/10 space-y-2">
