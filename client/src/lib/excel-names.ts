@@ -165,6 +165,8 @@ export async function getAllNames(): Promise<ExcelName[]> {
       sheets.load("items/name");
       await ctx.sync();
 
+      console.log(`[Epifai] Loaded ${names.items.length} workbook-level names:`, names.items.map(i => i.name));
+
       const results: ExcelName[] = [];
 
       const hasNullObjectApi = typeof names.items[0]?.getRangeOrNullObject === "function";
@@ -259,6 +261,7 @@ export async function getAllNames(): Promise<ExcelName[]> {
         }
       }
 
+      console.log(`[Epifai] Returning ${results.length} total names:`, results.map(r => `${r.name} (${r.origin})`));
       return results;
     });
   } catch (error) {
@@ -293,6 +296,7 @@ export async function claimAsEpifai(name: string, scope: string): Promise<void> 
 }
 
 export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedRef = "", dynamicRef = "", lastColOnly = false, lastRowOnly = false): Promise<void> {
+  console.log(`[Epifai] addName called: name="${name}", formula="${formula}", scope="${scope}"`);
   return Excel.run(async (ctx) => {
     const raw = formula.replace(/^=/, "");
     const hasFunction = /[A-Z]+\(/.test(raw.toUpperCase());
