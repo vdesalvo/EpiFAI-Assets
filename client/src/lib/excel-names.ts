@@ -114,6 +114,11 @@ function isDynamicFormula(formula: string): boolean {
   return f.includes("OFFSET(") || f.includes("INDIRECT(") || f.includes("INDEX(");
 }
 
+function isUnionFormula(formula: string): boolean {
+  const raw = formula.replace(/^=/, "");
+  return splitFormulaTopLevel(raw).length > 1;
+}
+
 function isBrokenValue(value: any): boolean {
   if (typeof value === "string") {
     const v = value.toUpperCase();
@@ -128,7 +133,7 @@ function buildExcelName(item: any, scope: string, address: string, values?: any[
   const skip = parseSkipTag(rawComment);
 
   let status: ExcelName["status"] = "valid";
-  if (!address && !isDynamicFormula(item.formula || "")) {
+  if (!address && !isDynamicFormula(item.formula || "") && !isUnionFormula(item.formula || "")) {
     status = "broken";
   } else if (isBrokenValue(item.value)) {
     status = "broken";
@@ -172,9 +177,9 @@ export async function getAllNames(): Promise<ExcelName[]> {
       const wbPending: { item: any; range: any | null; skip: boolean }[] = [];
 
       for (const item of names.items) {
-        const f = (item.formula || "").toUpperCase();
+        const f = item.formula || "";
         const val = item.value;
-        if (isBrokenValue(val) || isDynamicFormula(f)) {
+        if (isBrokenValue(val) || isDynamicFormula(f) || isUnionFormula(f)) {
           wbPending.push({ item, range: null, skip: true });
         } else if (hasNullObjectApi) {
           const r = item.getRangeOrNullObject();
@@ -219,9 +224,9 @@ export async function getAllNames(): Promise<ExcelName[]> {
 
       for (const sheet of sheets.items) {
         for (const item of sheet.names.items) {
-          const f = (item.formula || "").toUpperCase();
+          const f = item.formula || "";
           const val = item.value;
-          if (isBrokenValue(val) || isDynamicFormula(f)) {
+          if (isBrokenValue(val) || isDynamicFormula(f) || isUnionFormula(f)) {
             allSheetPending.push({ item, range: null, skip: true, sheetName: sheet.name });
           } else if (hasNullObjectApi) {
             const r = item.getRangeOrNullObject();
