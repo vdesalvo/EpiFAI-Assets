@@ -363,23 +363,23 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                           const isLastActive = expandCols && ci === lastActiveColIdx;
 
                           return (
-                            <th
-                              key={ci}
-                              className={cn(
-                                "min-w-[48px] px-1 py-1.5 text-center font-bold cursor-pointer select-none border-b border-r transition-all",
-                                isSkipped
-                                  ? "bg-muted/30 text-muted-foreground/30 line-through"
-                                  : isLastActive
-                                    ? "bg-emerald-50 text-emerald-700 border-r-2 border-r-emerald-400 dark:bg-emerald-950/20 dark:text-emerald-300"
-                                    : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                              )}
-                              onClick={() => toggleColSkip(ci)}
-                              title={isSkipped ? `Click to include column ${colLetter}` : `Click to skip column ${colLetter}`}
-                              data-testid={`col-header-${colLetter}`}
-                              role="button"
-                              tabIndex={0}
-                            >
-                              {colLetter}{isSkipped ? " ✕" : ""}
+                            <th key={ci} className="min-w-[48px] p-0 border-b border-r">
+                              <button
+                                type="button"
+                                className={cn(
+                                  "w-full px-1 py-1.5 text-center font-bold cursor-pointer select-none transition-all text-[10px]",
+                                  isSkipped
+                                    ? "bg-red-100 text-red-500 line-through dark:bg-red-950/30 dark:text-red-400"
+                                    : isLastActive
+                                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300"
+                                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                                )}
+                                onClick={() => toggleColSkip(ci)}
+                                title={isSkipped ? `Click to include column ${colLetter}` : `Click to skip column ${colLetter}`}
+                                data-testid={`col-header-${colLetter}`}
+                              >
+                                {colLetter}{isSkipped ? " ✕" : ""}
+                              </button>
                             </th>
                           );
                         })}
@@ -398,22 +398,23 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
 
                         return (
                           <tr key={ri}>
-                            <td
-                              className={cn(
-                                "text-center font-bold px-1 py-1 border-r border-b cursor-pointer select-none transition-all",
-                                isRowSkipped
-                                  ? "bg-muted/30 text-muted-foreground/30 line-through"
-                                  : isLastActiveRow
-                                    ? "bg-emerald-50 text-emerald-700 border-b-2 border-b-emerald-400 dark:bg-emerald-950/20 dark:text-emerald-300"
-                                    : "bg-muted/50 text-muted-foreground hover:bg-muted"
-                              )}
-                              onClick={() => toggleRowSkip(ri)}
-                              title={isRowSkipped ? `Click to include row ${rowNum}` : `Click to skip row ${rowNum}`}
-                              data-testid={`row-header-${rowNum}`}
-                              role="button"
-                              tabIndex={0}
-                            >
-                              {rowNum}{isRowSkipped ? " ✕" : ""}
+                            <td className="p-0 border-r border-b">
+                              <button
+                                type="button"
+                                className={cn(
+                                  "w-full text-center font-bold px-1 py-1 cursor-pointer select-none transition-all text-[10px]",
+                                  isRowSkipped
+                                    ? "bg-red-100 text-red-500 line-through dark:bg-red-950/30 dark:text-red-400"
+                                    : isLastActiveRow
+                                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300"
+                                      : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                                )}
+                                onClick={() => toggleRowSkip(ri)}
+                                title={isRowSkipped ? `Click to include row ${rowNum}` : `Click to skip row ${rowNum}`}
+                                data-testid={`row-header-${rowNum}`}
+                              >
+                                {rowNum}{isRowSkipped ? " ✕" : ""}
+                              </button>
                             </td>
                             {Array.from({ length: previewCols }, (_, ci) => {
                               const isDimmed = isRowSkipped || skippedCols.has(ci);
