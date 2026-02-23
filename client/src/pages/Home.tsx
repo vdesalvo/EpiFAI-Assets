@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useDeleteBrokenNames, useExportName, useRenameChart, useGoToChart, useCreateNameFromChart } from "@/hooks/use-excel";
 import { NameList } from "@/components/NameList";
-import { NameEditor } from "@/components/NameEditor";
 import { RangePicker } from "@/components/RangePicker";
 import { FullPageLoader, LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
@@ -123,7 +122,7 @@ export default function Home() {
   const exportName = useExportName();
 
   // UI State
-  const [view, setView] = useState<"list" | "edit" | "visual-picker">("list");
+  const [view, setView] = useState<"list" | "visual-picker">("list");
   const [editTarget, setEditTarget] = useState<ExcelName | undefined>(undefined);
   const [activeTab, setActiveTab] = useState("names");
 
@@ -139,18 +138,14 @@ export default function Home() {
 
   // --- Handlers ---
 
-  const handleCreateName = () => {
-    setEditTarget(undefined);
-    setView("edit");
-  };
-
   const handleVisualPicker = () => {
+    setEditTarget(undefined);
     setView("visual-picker");
   };
 
   const handleEditName = (name: ExcelName) => {
     setEditTarget(name);
-    setView("edit");
+    setView("visual-picker");
   };
 
   const handleCreateNameFromChart = async (chart: any) => {
@@ -316,8 +311,7 @@ export default function Home() {
                 >
                   <NameList 
                     names={names} 
-                    onCreate={handleCreateName}
-                    onVisualPicker={handleVisualPicker}
+                    onCreate={handleVisualPicker}
                     onEdit={handleEditName}
                     onDelete={handleDeleteName}
                     onGoTo={handleGoToName}
@@ -329,21 +323,6 @@ export default function Home() {
                     pendingDeleteName={pendingDelete?.name || null}
                   />
                 </motion.div>
-              ) : view === "edit" ? (
-                <motion.div 
-                  key="edit"
-                  initial={{ opacity: 0, x: 20 }} 
-                  animate={{ opacity: 1, x: 0 }} 
-                  exit={{ opacity: 0, x: 20 }}
-                  className="absolute inset-0"
-                >
-                  <NameEditor 
-                    key={editTarget?.name || "new"}
-                    initialData={editTarget}
-                    onSave={handleSaveName} 
-                    onCancel={() => setView("list")} 
-                  />
-                </motion.div>
               ) : (
                 <motion.div
                   key="visual-picker"
@@ -353,9 +332,11 @@ export default function Home() {
                   className="absolute inset-0"
                 >
                   <RangePicker
+                    key={editTarget?.name || "new"}
                     onSave={handleSaveName}
                     onCancel={() => setView("list")}
                     onPickSelection={getSelectionData}
+                    editTarget={editTarget ? { name: editTarget.name, comment: editTarget.comment, formula: editTarget.formula } : null}
                   />
                 </motion.div>
               )}

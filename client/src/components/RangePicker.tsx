@@ -13,6 +13,7 @@ interface RangePickerProps {
     name: string;
     refersTo: string;
     comment: string;
+    newName?: string;
     skipRows?: number;
     skipCols?: number;
     fixedRef?: string;
@@ -23,6 +24,7 @@ interface RangePickerProps {
   onCancel: () => void;
   onPickSelection: () => Promise<SelectionData | undefined>;
   isPicking?: boolean;
+  editTarget?: { name: string; comment: string; formula: string } | null;
 }
 
 const MAX_PREVIEW_ROWS = 8;
@@ -57,11 +59,12 @@ function sheetPrefix(sheet: string): string {
   return `${quoteSheet(sheet)}!`;
 }
 
-export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: RangePickerProps) {
+export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, editTarget }: RangePickerProps) {
+  const isEditing = !!editTarget;
   const [selectionData, setSelectionData] = useState<SelectionData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [name, setName] = useState("");
-  const [comment, setComment] = useState("");
+  const [name, setName] = useState(editTarget?.name || "");
+  const [comment, setComment] = useState(editTarget?.comment || "");
   const [nameError, setNameError] = useState("");
   const { toast } = useToast();
 
@@ -462,8 +465,9 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
     }
     setNameError("");
     onSave({
-      name,
+      name: isEditing ? editTarget!.name : name,
       comment,
+      ...(isEditing && name !== editTarget!.name ? { newName: name } : {}),
       ...result,
     });
   };
@@ -497,8 +501,8 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
         >
           <ArrowLeft className="w-3 h-3" /> Back
         </button>
-        <h2 className="text-lg font-bold text-foreground">Visual Range Picker</h2>
-        <p className="text-xs text-muted-foreground">Select a range in Excel, then configure it visually.</p>
+        <h2 className="text-lg font-bold text-foreground">{isEditing ? "Edit Named Range" : "Visual Range Picker"}</h2>
+        <p className="text-xs text-muted-foreground">{isEditing ? "Re-pick the range in Excel and adjust settings." : "Select a range in Excel, then configure it visually."}</p>
       </div>
 
       <div className="space-y-4 flex-1 overflow-y-auto pr-1">
@@ -516,6 +520,13 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
             <p className="text-[11px] text-destructive font-medium">{nameError}</p>
           )}
         </div>
+
+        {isEditing && editTarget?.formula && (
+          <div className="bg-muted/30 border rounded-md p-2.5">
+            <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">Current Formula</p>
+            <p className="text-[11px] font-mono text-foreground/70 break-all">{editTarget.formula}</p>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Excel Range</Label>
@@ -973,7 +984,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking }: Ra
           disabled={!selectionData}
           data-testid="button-vp-save"
         >
-          Create Range
+          {isEditing ? "Update Range" : "Create Range"}
         </Button>
         <Button variant="outline" className="flex-1" onClick={onCancel} data-testid="button-vp-cancel">
           Cancel

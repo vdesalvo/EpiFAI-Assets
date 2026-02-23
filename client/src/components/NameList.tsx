@@ -25,7 +25,6 @@ interface NameListProps {
   onDelete: (name: ExcelName) => void;
   onGoTo: (name: ExcelName) => void;
   onCreate: () => void;
-  onVisualPicker?: () => void;
   onClaim?: (name: ExcelName) => void;
   onExport?: (name: ExcelName) => void;
   isExporting?: boolean;
@@ -34,7 +33,7 @@ interface NameListProps {
   pendingDeleteName?: string | null;
 }
 
-export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onVisualPicker, onClaim, onExport, isExporting, onDeleteBroken, isDeletingBroken, pendingDeleteName }: NameListProps) {
+export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onClaim, onExport, isExporting, onDeleteBroken, isDeletingBroken, pendingDeleteName }: NameListProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "epifai" | "excel" | "broken">("epifai");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -269,26 +268,14 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onVisualPi
           <span className="text-xs text-muted-foreground font-medium">
             {filteredNames.length} names
           </span>
-          <div className="flex items-center gap-2">
-            {onVisualPicker && (
-              <Button
-                variant="ghost"
-                className="text-emerald-600 h-auto p-0 text-xs font-semibold"
-                onClick={onVisualPicker}
-                data-testid="button-visual-picker"
-              >
-                Visual Picker
-              </Button>
-            )}
-            <Button 
-              variant="ghost" 
-              className="text-primary h-auto p-0 text-xs font-semibold"
-              onClick={onCreate}
-              data-testid="button-new-named-range"
-            >
-              + New Named Range
-            </Button>
-          </div>
+          <Button 
+            variant="ghost" 
+            className="text-primary h-auto p-0 text-xs font-semibold"
+            onClick={onCreate}
+            data-testid="button-new-named-range"
+          >
+            + New Named Range
+          </Button>
         </div>
         {stats.broken > 0 && onDeleteBroken && filter === "broken" && (
           <div className="flex items-center justify-between gap-2">
