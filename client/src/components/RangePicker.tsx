@@ -321,7 +321,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                                     ? "bg-emerald-50 text-emerald-700 border-r-2 border-r-emerald-400 dark:bg-emerald-950/20 dark:text-emerald-300"
                                     : "bg-muted/50 text-muted-foreground hover:bg-muted"
                               )}
-                              onClick={() => toggleColSkip(ci)}
+                              onPointerDown={(e) => { e.preventDefault(); toggleColSkip(ci); }}
                               title={isSkipped ? `Click to include column ${colLetter}` : `Click to skip column ${colLetter}`}
                               data-testid={`col-header-${colLetter}`}
                             >
@@ -353,7 +353,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                                     ? "bg-emerald-50 text-emerald-700 border-b-2 border-b-emerald-400 dark:bg-emerald-950/20 dark:text-emerald-300"
                                     : "bg-muted/50 text-muted-foreground hover:bg-muted"
                               )}
-                              onClick={() => toggleRowSkip(ri)}
+                              onPointerDown={(e) => { e.preventDefault(); toggleRowSkip(ri); }}
                               title={isRowSkipped ? `Click to include row ${rowNum}` : `Click to skip row ${rowNum}`}
                               data-testid={`row-header-${rowNum}`}
                             >
