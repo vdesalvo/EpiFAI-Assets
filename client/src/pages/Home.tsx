@@ -160,13 +160,13 @@ export default function Home() {
     }
   };
 
-  const handleSaveName = async (data: { name: string; refersTo: string; comment: string; newName?: string; skipRows?: number; skipCols?: number; fixedRef?: string; dynamicRef?: string; lastColOnly?: boolean; lastRowOnly?: boolean }) => {
+  const handleSaveName = async (data: { name: string; refersTo: string; comment: string; newName?: string; skipRows?: number; skipCols?: number; fixedRef?: string; dynamicRef?: string; lastColOnly?: boolean; lastRowOnly?: boolean; origRange?: string; expandRows?: boolean; expandCols?: boolean; skippedColIndices?: number[]; skippedRowIndices?: number[] }) => {
     try {
       if (editTarget) {
-        await updateName.mutateAsync({ name: editTarget.name, updates: { ...data, skipRows: data.skipRows, skipCols: data.skipCols, fixedRef: data.fixedRef, dynamicRef: data.dynamicRef, lastColOnly: data.lastColOnly, lastRowOnly: data.lastRowOnly } });
+        await updateName.mutateAsync({ name: editTarget.name, updates: { ...data, skipRows: data.skipRows, skipCols: data.skipCols, fixedRef: data.fixedRef, dynamicRef: data.dynamicRef, lastColOnly: data.lastColOnly, lastRowOnly: data.lastRowOnly, origRange: data.origRange, expandRows: data.expandRows, expandCols: data.expandCols, skippedColIndices: data.skippedColIndices, skippedRowIndices: data.skippedRowIndices } });
         toast({ title: "Updated", description: `Updated range "${data.newName || data.name}"` });
       } else {
-        await addName.mutateAsync({ name: data.name, formula: data.refersTo, comment: data.comment, skipRows: data.skipRows || 0, skipCols: data.skipCols || 0, fixedRef: data.fixedRef || "", dynamicRef: data.dynamicRef || "", lastColOnly: data.lastColOnly || false, lastRowOnly: data.lastRowOnly || false });
+        await addName.mutateAsync({ name: data.name, formula: data.refersTo, comment: data.comment, skipRows: data.skipRows || 0, skipCols: data.skipCols || 0, fixedRef: data.fixedRef || "", dynamicRef: data.dynamicRef || "", lastColOnly: data.lastColOnly || false, lastRowOnly: data.lastRowOnly || false, origRange: data.origRange || "", expandRows: data.expandRows || false, expandCols: data.expandCols || false, skippedColIndices: data.skippedColIndices || [], skippedRowIndices: data.skippedRowIndices || [] });
         toast({ title: "Created", description: `Created range "${data.name}"` });
       }
       setView("list");
@@ -336,7 +336,7 @@ export default function Home() {
                     onSave={handleSaveName}
                     onCancel={() => setView("list")}
                     onPickSelection={getSelectionData}
-                    editTarget={editTarget ? { name: editTarget.name, comment: editTarget.comment, formula: editTarget.formula } : null}
+                    editTarget={editTarget || null}
                   />
                 </motion.div>
               )}

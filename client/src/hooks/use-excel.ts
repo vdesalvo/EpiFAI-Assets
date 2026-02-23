@@ -15,8 +15,8 @@ export function useNames() {
 export function useAddName() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, formula, comment, skipRows, skipCols, fixedRef, dynamicRef, lastColOnly, lastRowOnly }: { name: string; formula: string; comment?: string; skipRows?: number; skipCols?: number; fixedRef?: string; dynamicRef?: string; lastColOnly?: boolean; lastRowOnly?: boolean }) => 
-      namesSvc.addName(name, formula, comment, "Workbook", skipRows || 0, skipCols || 0, fixedRef || "", dynamicRef || "", lastColOnly || false, lastRowOnly || false),
+    mutationFn: ({ name, formula, comment, skipRows, skipCols, fixedRef, dynamicRef, lastColOnly, lastRowOnly, origRange, expandRows, expandCols, skippedColIndices, skippedRowIndices }: { name: string; formula: string; comment?: string; skipRows?: number; skipCols?: number; fixedRef?: string; dynamicRef?: string; lastColOnly?: boolean; lastRowOnly?: boolean; origRange?: string; expandRows?: boolean; expandCols?: boolean; skippedColIndices?: number[]; skippedRowIndices?: number[] }) => 
+      namesSvc.addName(name, formula, comment, "Workbook", skipRows || 0, skipCols || 0, fixedRef || "", dynamicRef || "", lastColOnly || false, lastRowOnly || false, origRange || "", expandRows || false, expandCols || false, skippedColIndices || [], skippedRowIndices || []),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-names"] }),
   });
 }

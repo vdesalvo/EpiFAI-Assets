@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo } from "react";
-import { SelectionData } from "@/lib/excel-names";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { SelectionData, ExcelName, readRangeData } from "@/lib/excel-names";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,11 +20,16 @@ interface RangePickerProps {
     dynamicRef?: string;
     lastColOnly?: boolean;
     lastRowOnly?: boolean;
+    origRange?: string;
+    expandRows?: boolean;
+    expandCols?: boolean;
+    skippedColIndices?: number[];
+    skippedRowIndices?: number[];
   }) => void;
   onCancel: () => void;
   onPickSelection: () => Promise<SelectionData | undefined>;
   isPicking?: boolean;
-  editTarget?: { name: string; comment: string; formula: string } | null;
+  editTarget?: ExcelName | null;
 }
 
 const MAX_PREVIEW_ROWS = 8;
@@ -72,6 +77,36 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
   const [skippedCols, setSkippedCols] = useState<Set<number>>(new Set());
   const [expandCols, setExpandCols] = useState(false);
   const [expandRows, setExpandRows] = useState(false);
+
+  useEffect(() => {
+    if (isEditing && editTarget?.origRange) {
+      const loadEditRange = async () => {
+        setLoading(true);
+        try {
+          const data = await readRangeData(editTarget.origRange);
+          setSelectionData(data);
+          if (editTarget.skippedColIndices?.length) {
+            setSkippedCols(new Set(editTarget.skippedColIndices));
+          }
+          if (editTarget.skippedRowIndices?.length) {
+            setSkippedRows(new Set(editTarget.skippedRowIndices));
+          }
+          setExpandCols(editTarget.expandCols || false);
+          setExpandRows(editTarget.expandRows || false);
+        } catch (e: any) {
+          console.error("Failed to load edit range:", e);
+          toast({
+            title: "Could not load existing range",
+            description: "You can re-pick the selection manually.",
+            variant: "destructive",
+          });
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadEditRange();
+    }
+  }, []);
 
   const handlePick = async () => {
     setLoading(true);
@@ -284,6 +319,11 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
       comment,
       ...(isEditing && name !== editTarget!.name ? { newName: name } : {}),
       ...result,
+      origRange: selectionData?.address || "",
+      expandRows,
+      expandCols,
+      skippedColIndices: Array.from(skippedCols).sort((a, b) => a - b),
+      skippedRowIndices: Array.from(skippedRows).sort((a, b) => a - b),
     });
   };
 
