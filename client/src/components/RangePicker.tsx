@@ -234,16 +234,18 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
           const anchor = `${sp}$${c1}$${r1}`;
           let height: string;
           if (useExpandHeight) {
-            const rowCountRange = `${sp}$${c1}$${r1}:$${c1}$${bufferRow}`;
-            height = `COUNTA(${rowCountRange})`;
+            const nextRow = r2 + 1;
+            const extraRange = `${sp}$${c1}$${nextRow}:$${c1}$${bufferRow}`;
+            height = `${rgHeight}+COUNTA(${extraRange})`;
           } else {
             height = String(rgHeight);
           }
           let width: string;
           if (useExpandWidth) {
+            const nextCol = numToCol(colToNum(c2) + 1);
             const bufferCol = numToCol(Math.min(colToNum(c2) + 500, 16384));
-            const colCountRange = `${sp}$${c1}$${r1}:$${bufferCol}$${r1}`;
-            width = `COUNTA(${colCountRange})`;
+            const extraRange = `${sp}$${nextCol}$${r1}:$${bufferCol}$${r1}`;
+            width = `${cgWidth}+COUNTA(${extraRange})`;
           } else {
             width = String(cgWidth);
           }
