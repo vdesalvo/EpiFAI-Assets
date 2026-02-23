@@ -70,12 +70,8 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
 
   const [skippedRows, setSkippedRows] = useState<Set<number>>(new Set());
   const [skippedCols, setSkippedCols] = useState<Set<number>>(new Set());
-  const [fixedBoundary, setFixedBoundary] = useState<number>(0);
-  const [fixedRowBoundary, setFixedRowBoundary] = useState<number>(0);
-  const [lastColOnly, setLastColOnly] = useState(false);
-  const [lastRowOnly, setLastRowOnly] = useState(false);
-  const [dynamicCols, setDynamicCols] = useState(false);
-  const [dynamicRows, setDynamicRows] = useState(false);
+  const [expandCols, setExpandCols] = useState(false);
+  const [expandRows, setExpandRows] = useState(false);
 
   const handlePick = async () => {
     setLoading(true);
@@ -85,12 +81,8 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
         setSelectionData(data);
         setSkippedRows(new Set());
         setSkippedCols(new Set());
-        setFixedBoundary(0);
-        setFixedRowBoundary(0);
-        setLastColOnly(false);
-        setLastRowOnly(false);
-        setDynamicCols(false);
-        setDynamicRows(false);
+        setExpandCols(false);
+        setExpandRows(false);
       }
     } catch (e: any) {
       console.error("Failed to get selection:", e);
@@ -120,14 +112,6 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
       else next.add(colIdx);
       return next;
     });
-  }, []);
-
-  const setDividerAt = useCallback((colIdx: number) => {
-    setFixedBoundary(prev => prev === colIdx ? 0 : colIdx);
-  }, []);
-
-  const setRowDividerAt = useCallback((rowIdx: number) => {
-    setFixedRowBoundary(prev => prev === rowIdx ? 0 : rowIdx);
   }, []);
 
   const activeColIndices = useMemo(() => {
@@ -162,86 +146,6 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
     return count;
   }, [selectionData, skippedCols]);
 
-  const isHybrid = fixedBoundary > 0;
-  const isRowHybrid = fixedRowBoundary > 0;
-
-  const MAX_ROW_BUTTONS = 20;
-
-  const summary = useMemo(() => {
-    if (!selectionData) return null;
-    const cols = selectionData.columns;
-    const activeCols = activeColIndices.map(i => cols[i]);
-
-    const fixedActiveRowIndices = isRowHybrid ? activeRowIndices.slice(0, fixedRowBoundary) : activeRowIndices;
-    const dynamicActiveRowIndices = isRowHybrid ? activeRowIndices.slice(fixedRowBoundary) : [];
-    const fixedActiveRows = fixedActiveRowIndices.map(i => selectionData.startRow + i);
-    const dynamicActiveRows = dynamicActiveRowIndices.map(i => selectionData.startRow + i);
-
-    if (isHybrid && isRowHybrid) {
-      const fixedCols = activeCols.slice(0, fixedBoundary);
-      const dynCols = activeCols.slice(fixedBoundary);
-      return {
-        type: "bothHybrid" as const,
-        fixedCols,
-        dynamicCols: dynCols,
-        fixedActiveRowIndices,
-        dynamicActiveRowIndices,
-        fixedActiveRows,
-        dynamicActiveRows,
-        skipRows: topSkipCount,
-        skipCols: leftSkipCount,
-        lastColOnly,
-        lastRowOnly,
-      };
-    }
-
-    if (isHybrid) {
-      const fixedCols = activeCols.slice(0, fixedBoundary);
-      const dynCols = activeCols.slice(fixedBoundary);
-      return {
-        type: "hybrid" as const,
-        fixedCols,
-        dynamicCols: dynCols,
-        fixedActiveRowIndices,
-        dynamicActiveRowIndices,
-        fixedActiveRows,
-        dynamicActiveRows,
-        skipRows: topSkipCount,
-        skipCols: leftSkipCount,
-        lastColOnly,
-        lastRowOnly,
-      };
-    }
-
-    if (isRowHybrid) {
-      return {
-        type: "rowHybrid" as const,
-        cols: activeCols,
-        fixedActiveRowIndices,
-        dynamicActiveRowIndices,
-        fixedActiveRows,
-        dynamicActiveRows,
-        skipRows: topSkipCount,
-        skipCols: leftSkipCount,
-        lastColOnly: false,
-        lastRowOnly,
-      };
-    }
-
-    return {
-      type: "simple" as const,
-      cols: activeCols,
-      fixedActiveRowIndices,
-      dynamicActiveRowIndices,
-      fixedActiveRows,
-      dynamicActiveRows,
-      skipRows: topSkipCount,
-      skipCols: leftSkipCount,
-      lastColOnly: false,
-      lastRowOnly: false,
-    };
-  }, [selectionData, activeColIndices, activeRowIndices, fixedBoundary, fixedRowBoundary, topSkipCount, leftSkipCount, isHybrid, isRowHybrid, lastColOnly, lastRowOnly]);
-
   const validateName = (n: string): string => {
     if (!n.trim()) return "Name is required";
     if (/\s/.test(n)) return "No spaces allowed. Use underscores.";
@@ -252,25 +156,25 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
   };
 
   const buildResult = useCallback(() => {
-    if (!selectionData || !summary) return null;
+    if (!selectionData || activeColIndices.length === 0) return null;
 
     const sp = sheetPrefix(selectionData.sheet);
-    const startRowNum = selectionData.startRow;
-    const qSheet = quoteSheet(selectionData.sheet);
-    const sheetRef = qSheet ? `${qSheet}!` : "";
-    const bufferRowNum = Math.min(selectionData.endRow + 20, 1048576);
+    const activeCols = activeColIndices.map(i => selectionData.columns[i]);
+    const firstCol = activeCols[0];
+    const lastCol = activeCols[activeCols.length - 1];
+    const dataStartRow = selectionData.startRow + topSkipCount;
+    const endRow = selectionData.endRow;
+    const staticHeight = endRow - dataStartRow + 1;
+    const staticWidth = colToNum(lastCol) - colToNum(firstCol) + 1;
 
-    if (summary.type === "simple") {
-      const activeCols = summary.cols;
-      if (activeCols.length === 0) return null;
-      const firstCol = activeCols[0];
-      const lastCol = activeCols[activeCols.length - 1];
-      const dataStartRow = startRowNum + summary.skipRows;
-      const ref = `${sp}$${firstCol}$${dataStartRow}:$${lastCol}$${selectionData.endRow}`;
+    const anchor = `${sp}$${firstCol}$${dataStartRow}`;
+
+    if (!expandRows && !expandCols) {
+      const ref = `${sp}$${firstCol}$${dataStartRow}:$${lastCol}$${endRow}`;
       return {
         refersTo: `=${ref}`,
-        skipRows: summary.skipRows,
-        skipCols: summary.skipCols,
+        skipRows: topSkipCount,
+        skipCols: leftSkipCount,
         fixedRef: "",
         dynamicRef: "",
         lastColOnly: false,
@@ -278,179 +182,27 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
       };
     }
 
-    if (summary.type === "rowHybrid") {
-      const activeCols = summary.cols;
-      if (activeCols.length === 0 || summary.fixedActiveRowIndices.length === 0 || summary.dynamicActiveRowIndices.length === 0) return null;
-      const firstCol = activeCols[0];
-      const lastCol = activeCols[activeCols.length - 1];
-      const totalColWidth = String(colToNum(lastCol) - colToNum(firstCol) + 1);
+    const bufferRow = Math.min(endRow + 500, 1048576);
+    const bufferCol = numToCol(Math.min(colToNum(lastCol) + 500, 16384));
 
-      const fixedRowStartNum = startRowNum + summary.fixedActiveRowIndices[0];
-      const fixedRowEndNum = startRowNum + summary.fixedActiveRowIndices[summary.fixedActiveRowIndices.length - 1];
-      const dynRowStartNum = startRowNum + summary.dynamicActiveRowIndices[0];
+    const rowCountRange = `${sp}$${firstCol}$${dataStartRow}:$${firstCol}$${bufferRow}`;
+    const colCountRange = `${sp}$${firstCol}$${dataStartRow}:$${bufferCol}$${dataStartRow}`;
 
-      const fixedPart = `${sp}$${firstCol}$${fixedRowStartNum}:$${lastCol}$${fixedRowEndNum}`;
-      const dynRowAnchor = `${sp}$${firstCol}$${dynRowStartNum}`;
-      const rowCountRange = `${sp}$${firstCol}$${dynRowStartNum}:$${firstCol}$${bufferRowNum}`;
+    const height = expandRows ? `COUNTA(${rowCountRange})` : String(staticHeight);
+    const width = expandCols ? `COUNTA(${colCountRange})` : String(staticWidth);
 
-      let rowExpr: string;
-      let rowHeight: string;
-      if (!dynamicRows) {
-        rowExpr = "0";
-        rowHeight = String(summary.dynamicActiveRowIndices.length);
-      } else if (summary.lastRowOnly) {
-        rowExpr = `COUNTA(${rowCountRange})-1`;
-        rowHeight = "1";
-      } else {
-        rowExpr = "0";
-        rowHeight = `COUNTA(${rowCountRange})`;
-      }
+    const formula = `=OFFSET(${anchor},0,0,${height},${width})`;
 
-      const formula = `=${fixedPart},OFFSET(${dynRowAnchor},${rowExpr},0,${rowHeight},${totalColWidth})`;
-      const fixedRefStr = `${sheetRef}$${firstCol}$${fixedRowStartNum}:$${lastCol}$${fixedRowEndNum}`;
-      const dynamicRefStr = `${sheetRef}$${firstCol}$${dynRowStartNum}:$${lastCol}$${selectionData.endRow}`;
-
-      return {
-        refersTo: formula,
-        skipRows: summary.skipRows,
-        skipCols: summary.skipCols,
-        fixedRef: fixedRefStr,
-        dynamicRef: dynamicRefStr,
-        lastColOnly: false,
-        lastRowOnly: summary.lastRowOnly,
-      };
-    }
-
-    if (summary.type === "hybrid") {
-      if (summary.fixedCols.length === 0 || summary.dynamicCols.length === 0) return null;
-
-      const dataStartRow = startRowNum + summary.skipRows;
-      const fixedFirst = summary.fixedCols[0];
-      const fixedLast = summary.fixedCols[summary.fixedCols.length - 1];
-      const dynFirst = summary.dynamicCols[0];
-      const dynLast = summary.dynamicCols[summary.dynamicCols.length - 1];
-
-      const fixedRefStr = `${sheetRef}$${fixedFirst}$${dataStartRow}:$${fixedLast}$${selectionData.endRow}`;
-      const dynamicRefStr = `${sheetRef}$${dynFirst}$${dataStartRow}:$${dynLast}$${selectionData.endRow}`;
-
-      const bufferColNum = colToNum(dynLast) + 20;
-      const bufferCol = numToCol(Math.min(bufferColNum, 16384));
-
-      const fixedPart = `${sp}$${fixedFirst}$${dataStartRow}:$${fixedLast}$${selectionData.endRow}`;
-      const dynAnchor = `${sp}$${dynFirst}$${dataStartRow}`;
-      const rowCountRange = `${sp}$${dynFirst}$${dataStartRow}:$${dynFirst}$${bufferRowNum}`;
-      const colCountRange = `${sp}$${dynFirst}$${dataStartRow}:$${bufferCol}$${dataStartRow}`;
-
-      let rowExpr: string;
-      let rowHeight: string;
-      if (!dynamicRows) {
-        rowExpr = "0";
-        rowHeight = String(selectionData.endRow - dataStartRow + 1);
-      } else if (summary.lastRowOnly) {
-        rowExpr = `COUNTA(${rowCountRange})-1`;
-        rowHeight = "1";
-      } else {
-        rowExpr = "0";
-        rowHeight = `COUNTA(${rowCountRange})`;
-      }
-
-      let colExpr: string;
-      let colWidth: string;
-      if (!dynamicCols) {
-        colExpr = "0";
-        colWidth = String(colToNum(dynLast) - colToNum(dynFirst) + 1);
-      } else if (summary.lastColOnly) {
-        colExpr = `COUNTA(${colCountRange})-1`;
-        colWidth = "1";
-      } else {
-        colExpr = "0";
-        colWidth = `COUNTA(${colCountRange})`;
-      }
-
-      const formula = `=${fixedPart},OFFSET(${dynAnchor},${rowExpr},${colExpr},${rowHeight},${colWidth})`;
-
-      return {
-        refersTo: formula,
-        skipRows: summary.skipRows,
-        skipCols: summary.skipCols,
-        fixedRef: fixedRefStr,
-        dynamicRef: dynamicRefStr,
-        lastColOnly: summary.lastColOnly,
-        lastRowOnly: summary.lastRowOnly,
-      };
-    }
-
-    if (summary.type === "bothHybrid") {
-      if (summary.fixedCols.length === 0 || summary.dynamicCols.length === 0 ||
-          summary.fixedActiveRowIndices.length === 0 || summary.dynamicActiveRowIndices.length === 0) return null;
-
-      const fixedFirst = summary.fixedCols[0];
-      const fixedLast = summary.fixedCols[summary.fixedCols.length - 1];
-      const dynFirst = summary.dynamicCols[0];
-      const dynLast = summary.dynamicCols[summary.dynamicCols.length - 1];
-
-      const fixedRowStartNum = startRowNum + summary.fixedActiveRowIndices[0];
-      const fixedRowEndNum = startRowNum + summary.fixedActiveRowIndices[summary.fixedActiveRowIndices.length - 1];
-      const dynRowStartNum = startRowNum + summary.dynamicActiveRowIndices[0];
-
-      const fixedRefStr = `${sheetRef}$${fixedFirst}$${fixedRowStartNum}:$${fixedLast}$${fixedRowEndNum}`;
-      const dynamicRefStr = `${sheetRef}$${dynFirst}$${dynRowStartNum}:$${dynLast}$${selectionData.endRow}`;
-
-      const bufferColNum = colToNum(dynLast) + 20;
-      const bufferCol = numToCol(Math.min(bufferColNum, 16384));
-
-      const fixedColW = String(colToNum(fixedLast) - colToNum(fixedFirst) + 1);
-      const fixedRowH = String(summary.fixedActiveRowIndices.length);
-
-      const rowCountRange = `${sp}$${dynFirst}$${dynRowStartNum}:$${dynFirst}$${bufferRowNum}`;
-      const colCountRange = `${sp}$${dynFirst}$${fixedRowStartNum}:$${bufferCol}$${fixedRowStartNum}`;
-
-      let rowExpr: string;
-      let rowHeight: string;
-      if (!dynamicRows) {
-        rowExpr = "0";
-        rowHeight = String(summary.dynamicActiveRowIndices.length);
-      } else if (summary.lastRowOnly) {
-        rowExpr = `COUNTA(${rowCountRange})-1`;
-        rowHeight = "1";
-      } else {
-        rowExpr = "0";
-        rowHeight = `COUNTA(${rowCountRange})`;
-      }
-
-      let colExpr: string;
-      let colWidth: string;
-      if (!dynamicCols) {
-        colExpr = "0";
-        colWidth = String(colToNum(dynLast) - colToNum(dynFirst) + 1);
-      } else if (summary.lastColOnly) {
-        colExpr = `COUNTA(${colCountRange})-1`;
-        colWidth = "1";
-      } else {
-        colExpr = "0";
-        colWidth = `COUNTA(${colCountRange})`;
-      }
-
-      const part1 = `${sp}$${fixedFirst}$${fixedRowStartNum}:$${fixedLast}$${fixedRowEndNum}`;
-      const part2Anchor = `${sp}$${fixedFirst}$${dynRowStartNum}`;
-      const part3Anchor = `${sp}$${dynFirst}$${fixedRowStartNum}`;
-      const part4Anchor = `${sp}$${dynFirst}$${dynRowStartNum}`;
-
-      const formula = `=${part1},OFFSET(${part2Anchor},${rowExpr},0,${rowHeight},${fixedColW}),OFFSET(${part3Anchor},0,${colExpr},${fixedRowH},${colWidth}),OFFSET(${part4Anchor},${rowExpr},${colExpr},${rowHeight},${colWidth})`;
-
-      return {
-        refersTo: formula,
-        skipRows: summary.skipRows,
-        skipCols: summary.skipCols,
-        fixedRef: fixedRefStr,
-        dynamicRef: dynamicRefStr,
-        lastColOnly: summary.lastColOnly,
-        lastRowOnly: summary.lastRowOnly,
-      };
-    }
-
-    return null;
-  }, [selectionData, summary, dynamicRows, dynamicCols, fixedRowBoundary]);
+    return {
+      refersTo: formula,
+      skipRows: topSkipCount,
+      skipCols: leftSkipCount,
+      fixedRef: "",
+      dynamicRef: "",
+      lastColOnly: false,
+      lastRowOnly: false,
+    };
+  }, [selectionData, activeColIndices, topSkipCount, leftSkipCount, expandRows, expandCols]);
 
   const handleSave = () => {
     const err = validateName(name);
@@ -477,19 +229,8 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
   const hasMoreRows = selectionData ? selectionData.values.length > MAX_PREVIEW_ROWS : false;
   const hasMoreCols = selectionData ? selectionData.colCount > MAX_PREVIEW_COLS : false;
 
-  const lastDynActiveIdx = useMemo(() => {
-    if (!isHybrid || !dynamicCols || !lastColOnly) return -1;
-    return activeColIndices.length - 1;
-  }, [isHybrid, dynamicCols, lastColOnly, activeColIndices]);
-
-  const lastDynRowIdx = useMemo(() => {
-    if (!dynamicRows || !lastRowOnly) return -1;
-    if (isRowHybrid) {
-      return activeRowIndices.length - 1;
-    }
-    if (!isHybrid) return -1;
-    return activeRowIndices.length - 1;
-  }, [isHybrid, isRowHybrid, dynamicRows, lastRowOnly, activeRowIndices]);
+  const lastActiveColIdx = activeColIndices.length > 0 ? activeColIndices[activeColIndices.length - 1] : -1;
+  const lastActiveRowIdx = activeRowIndices.length > 0 ? activeRowIndices[activeRowIndices.length - 1] : -1;
 
   return (
     <div className="flex flex-col h-full bg-background p-4 animate-in slide-in-from-right-4 duration-300">
@@ -567,10 +308,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                         {Array.from({ length: previewCols }, (_, ci) => {
                           const colLetter = selectionData.columns[ci];
                           const isSkipped = skippedCols.has(ci);
-                          const activeIdx = activeColIndices.indexOf(ci);
-                          const isFixed = !isSkipped && isHybrid && activeIdx >= 0 && activeIdx < fixedBoundary;
-                          const isDynamic = !isSkipped && isHybrid && activeIdx >= fixedBoundary;
-                          const isLastDynCol = isDynamic && lastColOnly && activeIdx === lastDynActiveIdx;
+                          const isLastActive = expandCols && ci === lastActiveColIdx;
 
                           return (
                             <th
@@ -579,13 +317,9 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                                 "min-w-[48px] px-1 py-1.5 text-center font-bold cursor-pointer select-none border-b border-r transition-all",
                                 isSkipped
                                   ? "bg-muted/30 text-muted-foreground/30 line-through"
-                                  : isFixed
-                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                                    : isLastDynCol
-                                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 ring-2 ring-amber-400 ring-inset"
-                                      : isDynamic
-                                        ? "bg-emerald-50 text-emerald-500 dark:bg-emerald-950/10 dark:text-emerald-500"
-                                        : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                                  : isLastActive
+                                    ? "bg-emerald-50 text-emerald-700 border-r-2 border-r-emerald-400 dark:bg-emerald-950/20 dark:text-emerald-300"
+                                    : "bg-muted/50 text-muted-foreground hover:bg-muted"
                               )}
                               onClick={() => toggleColSkip(ci)}
                               title={isSkipped ? `Click to include column ${colLetter}` : `Click to skip column ${colLetter}`}
@@ -606,11 +340,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                       {Array.from({ length: previewRows }, (_, ri) => {
                         const rowNum = selectionData.startRow + ri;
                         const isRowSkipped = skippedRows.has(ri);
-                        const activeRowIdx = activeRowIndices.indexOf(ri);
-                        const isActiveRow = !isRowSkipped && activeRowIdx >= 0;
-                        const isLastDynRow = isActiveRow && dynamicRows && lastRowOnly && activeRowIdx === lastDynRowIdx;
-                        const isRowInFixedSection = isActiveRow && isRowHybrid && activeRowIdx < fixedRowBoundary;
-                        const isRowInDynSection = isActiveRow && isRowHybrid && activeRowIdx >= fixedRowBoundary;
+                        const isLastActiveRow = expandRows && ri === lastActiveRowIdx;
 
                         return (
                           <tr key={ri}>
@@ -619,19 +349,9 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                                 "text-center font-bold px-1 py-1 border-r border-b cursor-pointer select-none transition-all",
                                 isRowSkipped
                                   ? "bg-muted/30 text-muted-foreground/30 line-through"
-                                  : isLastDynRow
-                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                                    : isRowInFixedSection
-                                      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                                      : isRowInDynSection && dynamicRows
-                                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                                        : isRowInDynSection
-                                          ? "bg-emerald-50 text-emerald-500 dark:bg-emerald-950/10 dark:text-emerald-500"
-                                          : isActiveRow && (isHybrid || isRowHybrid) && dynamicRows
-                                            ? lastRowOnly
-                                              ? "bg-emerald-50 text-emerald-500 dark:bg-emerald-950/10 dark:text-emerald-500"
-                                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                                            : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                                  : isLastActiveRow
+                                    ? "bg-emerald-50 text-emerald-700 border-b-2 border-b-emerald-400 dark:bg-emerald-950/20 dark:text-emerald-300"
+                                    : "bg-muted/50 text-muted-foreground hover:bg-muted"
                               )}
                               onClick={() => toggleRowSkip(ri)}
                               title={isRowSkipped ? `Click to include row ${rowNum}` : `Click to skip row ${rowNum}`}
@@ -640,18 +360,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                               {rowNum}
                             </td>
                             {Array.from({ length: previewCols }, (_, ci) => {
-                              const isColSkipped = skippedCols.has(ci);
-                              const isDimmed = isRowSkipped || isColSkipped;
-                              const activeIdx = activeColIndices.indexOf(ci);
-                              const isColFixed = !isDimmed && isHybrid && activeIdx >= 0 && activeIdx < fixedBoundary;
-                              const isColDynamic = !isDimmed && isHybrid && activeIdx >= fixedBoundary;
-                              const isLastDynCol = isColDynamic && lastColOnly && activeIdx === lastDynActiveIdx;
-                              const isCellLastRow = !isDimmed && isLastDynRow;
-                              const isCellLastIntersect = isCellLastRow && isLastDynCol;
-
-                              const inFixedRow = !isDimmed && isRowInFixedSection;
-                              const inDynRow = !isDimmed && isRowInDynSection;
-
+                              const isDimmed = isRowSkipped || skippedCols.has(ci);
                               const cellVal = selectionData.values[ri]?.[ci];
                               const displayVal = cellVal === null || cellVal === undefined || cellVal === "" ? "" : String(cellVal);
 
@@ -660,31 +369,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                                   key={ci}
                                   className={cn(
                                     "px-1.5 py-1 border-b border-r truncate max-w-[80px] transition-all",
-                                    isDimmed
-                                      ? "bg-muted/10 text-muted-foreground/20"
-                                      : isCellLastIntersect
-                                        ? "bg-amber-100/80 dark:bg-amber-900/30 ring-1 ring-inset ring-amber-400"
-                                        : isCellLastRow
-                                          ? "bg-amber-50/60 dark:bg-amber-950/20"
-                                          : inFixedRow && isColFixed
-                                            ? "bg-blue-100/50 dark:bg-blue-950/30"
-                                            : inFixedRow && isColDynamic
-                                              ? "bg-emerald-50/40 dark:bg-emerald-950/15"
-                                              : inDynRow && isColFixed
-                                                ? "bg-emerald-50/40 dark:bg-emerald-950/15"
-                                                : inDynRow && isColDynamic
-                                                  ? "bg-emerald-50/20 dark:bg-emerald-950/10"
-                                                  : inFixedRow
-                                                    ? "bg-blue-50/50 dark:bg-blue-950/20"
-                                                    : inDynRow
-                                                      ? "bg-emerald-50/20 dark:bg-emerald-950/10"
-                                                      : isColFixed
-                                                        ? "bg-blue-50/50 dark:bg-blue-950/20"
-                                                        : isLastDynCol
-                                                          ? "bg-amber-50/50 dark:bg-amber-950/20"
-                                                          : isColDynamic
-                                                            ? "bg-emerald-50/20 dark:bg-emerald-950/10"
-                                                            : ""
+                                    isDimmed ? "bg-muted/10 text-muted-foreground/20" : ""
                                   )}
                                   title={displayVal}
                                   data-testid={`cell-${ri}-${ci}`}
@@ -713,254 +398,46 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
               </div>
             </div>
 
-            {activeColIndices.length > 1 && (
-              <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                  Fixed / Dynamic Split
-                </Label>
-                <p className="text-[10px] text-muted-foreground leading-snug">
-                  Click a column below to set where fixed columns end and dynamic columns begin. Columns to the left are fixed (blue), to the right are dynamic (green).
-                </p>
-                <div className="flex gap-0.5 flex-wrap">
-                  {activeColIndices.map((colIdx, activePos) => {
-                    const colLetter = selectionData.columns[colIdx];
-                    const isBeforeBoundary = isHybrid && activePos < fixedBoundary;
-                    const isAtBoundary = isHybrid && activePos === fixedBoundary - 1;
-                    const isAfterBoundary = isHybrid && activePos >= fixedBoundary;
-                    const isLastDyn = isAfterBoundary && lastColOnly && activePos === lastDynActiveIdx;
-
-                    return (
-                      <button
-                        key={colIdx}
-                        onClick={() => setDividerAt(activePos + 1)}
-                        className={cn(
-                          "px-2 py-1 text-[10px] font-bold rounded border transition-all",
-                          isBeforeBoundary
-                            ? "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700"
-                            : isLastDyn
-                              ? "bg-amber-100 text-amber-700 border-amber-400 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700 ring-2 ring-amber-400 ring-offset-1"
-                              : isAfterBoundary
-                                ? "bg-emerald-50 text-emerald-400 border-emerald-200 dark:bg-emerald-950/10 dark:text-emerald-600 dark:border-emerald-800"
-                                : "bg-muted text-muted-foreground border-border hover:bg-accent",
-                          isAtBoundary && "ring-2 ring-blue-400 ring-offset-1"
-                        )}
-                        title={`Set split after column ${colLetter}`}
-                        data-testid={`split-col-${colLetter}`}
-                      >
-                        {colLetter}
-                      </button>
-                    );
-                  })}
+            <div className="bg-muted/30 border rounded-md p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="vp-expand-cols" className="text-[11px] text-muted-foreground">Expand Columns</Label>
+                  <p className="text-[9px] text-muted-foreground leading-snug">New columns added to the right will be included automatically</p>
                 </div>
-                {isHybrid && (
-                  <div className="flex gap-3 flex-wrap text-[10px]">
-                    <span className="flex items-center gap-1">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-blue-200 border border-blue-300" /> Fixed ({(summary?.type === "hybrid" || summary?.type === "bothHybrid") ? summary.fixedCols.join(", ") : ""})
-                    </span>
-                    {lastColOnly && dynamicCols && (summary?.type === "hybrid" || summary?.type === "bothHybrid") ? (
-                      <>
-                        <span className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-200" /> Dynamic ({summary.dynamicCols.slice(0, -1).join(", ") || "—"})
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-sm bg-amber-200 border border-amber-400" /> Last col ({summary.dynamicCols[summary.dynamicCols.length - 1]})
-                        </span>
-                      </>
-                    ) : (
-                      <span className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200 border border-emerald-300" /> Dynamic{dynamicCols ? " (auto-expand)" : ""} ({(summary?.type === "hybrid" || summary?.type === "bothHybrid") ? summary.dynamicCols.join(", ") : ""})
-                      </span>
-                    )}
-                  </div>
+                <Switch
+                  id="vp-expand-cols"
+                  checked={expandCols}
+                  onCheckedChange={setExpandCols}
+                  data-testid="switch-vp-expand-cols"
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="vp-expand-rows" className="text-[11px] text-muted-foreground">Expand Rows</Label>
+                  <p className="text-[9px] text-muted-foreground leading-snug">New rows added to the bottom will be included automatically</p>
+                </div>
+                <Switch
+                  id="vp-expand-rows"
+                  checked={expandRows}
+                  onCheckedChange={setExpandRows}
+                  data-testid="switch-vp-expand-rows"
+                />
+              </div>
+            </div>
+
+            <div className="bg-muted/50 border rounded-md p-2.5 space-y-1">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Summary</p>
+              <div className="text-[11px] text-foreground space-y-0.5">
+                {selectionData && activeColIndices.length > 0 && (
+                  <p className="font-mono text-[10px] break-all">
+                    {sheetPrefix(selectionData.sheet)}${activeColIndices.map(i => selectionData.columns[i])[0]}${selectionData.startRow + topSkipCount}:${activeColIndices.map(i => selectionData.columns[i]).slice(-1)[0]}${selectionData.endRow}
+                  </p>
                 )}
+                <p>{activeColIndices.length} active column{activeColIndices.length !== 1 ? "s" : ""}, {activeRowIndices.length} active row{activeRowIndices.length !== 1 ? "s" : ""}</p>
+                {expandCols && <p className="text-emerald-600 dark:text-emerald-400">↔ Columns will auto-expand</p>}
+                {expandRows && <p className="text-emerald-600 dark:text-emerald-400">↕ Rows will auto-expand</p>}
               </div>
-            )}
-
-            {activeRowIndices.length > 1 && (
-              <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                  Fixed / Dynamic Row Split
-                </Label>
-                <p className="text-[10px] text-muted-foreground leading-snug">
-                  Click a row below to set where fixed rows end and dynamic rows begin. Rows above are fixed (blue), below are dynamic (green).
-                </p>
-                <div className="flex gap-0.5 flex-wrap">
-                  {activeRowIndices.slice(0, MAX_ROW_BUTTONS).map((rowIdx, activePos) => {
-                    const rowNum = selectionData.startRow + rowIdx;
-                    const isBeforeBoundary = isRowHybrid && activePos < fixedRowBoundary;
-                    const isAtBoundary = isRowHybrid && activePos === fixedRowBoundary - 1;
-                    const isAfterBoundary = isRowHybrid && activePos >= fixedRowBoundary;
-                    const isLastDyn = isAfterBoundary && lastRowOnly && dynamicRows && activePos === activeRowIndices.length - 1;
-
-                    return (
-                      <button
-                        key={rowIdx}
-                        onClick={() => setRowDividerAt(activePos + 1)}
-                        className={cn(
-                          "px-2 py-1 text-[10px] font-bold rounded border transition-all",
-                          isBeforeBoundary
-                            ? "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700"
-                            : isLastDyn
-                              ? "bg-amber-100 text-amber-700 border-amber-400 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700 ring-2 ring-amber-400 ring-offset-1"
-                              : isAfterBoundary
-                                ? "bg-emerald-50 text-emerald-400 border-emerald-200 dark:bg-emerald-950/10 dark:text-emerald-600 dark:border-emerald-800"
-                                : "bg-muted text-muted-foreground border-border hover:bg-accent",
-                          isAtBoundary && "ring-2 ring-blue-400 ring-offset-1"
-                        )}
-                        title={`Set split after row ${rowNum}`}
-                        data-testid={`split-row-${rowNum}`}
-                      >
-                        {rowNum}
-                      </button>
-                    );
-                  })}
-                  {activeRowIndices.length > MAX_ROW_BUTTONS && (
-                    <span className="px-2 py-1 text-[10px] text-muted-foreground">
-                      +{activeRowIndices.length - MAX_ROW_BUTTONS} more
-                    </span>
-                  )}
-                </div>
-                {isRowHybrid && summary && (
-                  <div className="flex gap-3 flex-wrap text-[10px]">
-                    <span className="flex items-center gap-1">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-blue-200 border border-blue-300" /> Fixed (rows {summary.fixedActiveRows.join(", ")})
-                    </span>
-                    {lastRowOnly && dynamicRows && summary.dynamicActiveRows.length > 0 ? (
-                      <>
-                        <span className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-200" /> Dynamic (rows {summary.dynamicActiveRows.slice(0, -1).join(", ") || "—"})
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="w-2.5 h-2.5 rounded-sm bg-amber-200 border border-amber-400" /> Last row ({summary.dynamicActiveRows[summary.dynamicActiveRows.length - 1]})
-                        </span>
-                      </>
-                    ) : (
-                      <span className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200 border border-emerald-300" /> Dynamic{dynamicRows ? " (auto-expand)" : ""} (rows {summary.dynamicActiveRows.join(", ")})
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {isHybrid && (
-              <div className="bg-muted/30 border rounded-md p-3 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="vp-dynamic-cols" className="text-[11px] text-muted-foreground">Dynamic Columns</Label>
-                    <p className="text-[9px] text-muted-foreground leading-snug">Columns auto-expand as new data is added</p>
-                  </div>
-                  <Switch
-                    id="vp-dynamic-cols"
-                    checked={dynamicCols}
-                    onCheckedChange={(v) => { setDynamicCols(v); if (!v) setLastColOnly(false); }}
-                    data-testid="switch-vp-dynamic-cols"
-                  />
-                </div>
-                {dynamicCols && (
-                  <div className="flex items-center justify-between pl-4 border-l-2 border-emerald-300 dark:border-emerald-700">
-                    <div>
-                      <Label htmlFor="vp-last-col" className="text-[11px] text-muted-foreground">Last column only</Label>
-                      <p className="text-[9px] text-muted-foreground leading-snug">Only include the rightmost dynamic column</p>
-                    </div>
-                    <Switch
-                      id="vp-last-col"
-                      checked={lastColOnly}
-                      onCheckedChange={setLastColOnly}
-                      data-testid="switch-vp-last-col"
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {(isHybrid || isRowHybrid) && (
-              <div className="bg-muted/30 border rounded-md p-3 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="vp-dynamic-rows" className="text-[11px] text-muted-foreground">Dynamic Rows</Label>
-                    <p className="text-[9px] text-muted-foreground leading-snug">Rows auto-expand as new data is added</p>
-                  </div>
-                  <Switch
-                    id="vp-dynamic-rows"
-                    checked={dynamicRows}
-                    onCheckedChange={(v) => { setDynamicRows(v); if (!v) setLastRowOnly(false); }}
-                    data-testid="switch-vp-dynamic-rows"
-                  />
-                </div>
-                {dynamicRows && (
-                  <div className="flex items-center justify-between pl-4 border-l-2 border-emerald-300 dark:border-emerald-700">
-                    <div>
-                      <Label htmlFor="vp-last-row" className="text-[11px] text-muted-foreground">Last row only</Label>
-                      <p className="text-[9px] text-muted-foreground leading-snug">Only include the bottom-most dynamic row</p>
-                    </div>
-                    <Switch
-                      id="vp-last-row"
-                      checked={lastRowOnly}
-                      onCheckedChange={setLastRowOnly}
-                      data-testid="switch-vp-last-row"
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {summary && (
-              <div className="bg-muted/50 border rounded-md p-2.5 space-y-1">
-                <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Summary</p>
-                <div className="text-[11px] text-foreground space-y-0.5">
-                  {summary.skipRows > 0 && (
-                    <p>Skip: {summary.skipRows} row{summary.skipRows > 1 ? "s" : ""} from top</p>
-                  )}
-                  {summary.skipCols > 0 && (
-                    <p>Skip: {summary.skipCols} col{summary.skipCols > 1 ? "s" : ""} from left</p>
-                  )}
-                  {(summary.type === "hybrid" || summary.type === "bothHybrid") && (
-                    <>
-                      <p>
-                        <span className="text-blue-600 font-semibold">Fixed cols:</span> {summary.fixedCols.join(", ")}
-                      </p>
-                      <p>
-                        <span className="text-emerald-600 font-semibold">Dynamic cols:</span> {summary.dynamicCols.join(", ")}
-                        {dynamicCols
-                          ? (summary.lastColOnly ? " — auto-expand (last col only)" : " — auto-expand")
-                          : " — fixed width"}
-                      </p>
-                    </>
-                  )}
-                  {summary.type === "simple" && (
-                    <p>
-                      <span className="font-semibold">Range:</span> {summary.cols.join(", ")} (fixed)
-                    </p>
-                  )}
-                  {summary.type === "rowHybrid" && (
-                    <p>
-                      <span className="font-semibold">Columns:</span> {summary.cols.join(", ")} (fixed)
-                    </p>
-                  )}
-                  {isRowHybrid && (
-                    <>
-                      <p>
-                        <span className="text-blue-600 font-semibold">Fixed rows:</span> {summary.fixedActiveRows.join(", ")}
-                      </p>
-                      <p>
-                        <span className="text-emerald-600 font-semibold">Dynamic rows:</span> {summary.dynamicActiveRows.join(", ")}
-                        {dynamicRows
-                          ? (summary.lastRowOnly ? " — auto-expand (last row only)" : " — auto-expand")
-                          : " — fixed height"}
-                      </p>
-                    </>
-                  )}
-                  {!isRowHybrid && (isHybrid || isRowHybrid) && dynamicRows && (
-                    <p>
-                      <span className="text-amber-600 font-semibold">Rows:</span>{" "}
-                      {lastRowOnly ? "auto-expand (last row only)" : "auto-expand"}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="vp-comment" className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Description</Label>
