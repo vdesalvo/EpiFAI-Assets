@@ -156,23 +156,49 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
   };
 
   const buildResult = useCallback(() => {
-    if (!selectionData || activeColIndices.length === 0) return null;
+    if (!selectionData || activeColIndices.length === 0 || activeRowIndices.length === 0) return null;
 
     const sp = sheetPrefix(selectionData.sheet);
     const activeCols = activeColIndices.map(i => selectionData.columns[i]);
-    const firstCol = activeCols[0];
-    const lastCol = activeCols[activeCols.length - 1];
-    const dataStartRow = selectionData.startRow + topSkipCount;
-    const endRow = selectionData.endRow;
-    const staticHeight = endRow - dataStartRow + 1;
-    const staticWidth = colToNum(lastCol) - colToNum(firstCol) + 1;
 
-    const anchor = `${sp}$${firstCol}$${dataStartRow}`;
+    const colGroups: string[][] = [];
+    for (const col of activeCols) {
+      const last = colGroups[colGroups.length - 1];
+      if (last && colToNum(col) === colToNum(last[last.length - 1]) + 1) {
+        last.push(col);
+      } else {
+        colGroups.push([col]);
+      }
+    }
+
+    const activeRows = activeRowIndices.map(i => selectionData.startRow + i);
+    const rowGroups: number[][] = [];
+    for (const row of activeRows) {
+      const last = rowGroups[rowGroups.length - 1];
+      if (last && row === last[last.length - 1] + 1) {
+        last.push(row);
+      } else {
+        rowGroups.push([row]);
+      }
+    }
+
+    const endRow = selectionData.endRow;
+    const firstCol = activeCols[0];
+    const dataStartRow = activeRows[0];
 
     if (!expandRows && !expandCols) {
-      const ref = `${sp}$${firstCol}$${dataStartRow}:$${lastCol}$${endRow}`;
+      const parts: string[] = [];
+      for (const cg of colGroups) {
+        const c1 = cg[0];
+        const c2 = cg[cg.length - 1];
+        for (const rg of rowGroups) {
+          const r1 = rg[0];
+          const r2 = rg[rg.length - 1];
+          parts.push(`${sp}$${c1}$${r1}:$${c2}$${r2}`);
+        }
+      }
       return {
-        refersTo: `=${ref}`,
+        refersTo: `=${parts.join(",")}`,
         skipRows: topSkipCount,
         skipCols: leftSkipCount,
         fixedRef: "",
@@ -183,18 +209,44 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
     }
 
     const bufferRow = Math.min(endRow + 500, 1048576);
-    const bufferCol = numToCol(Math.min(colToNum(lastCol) + 500, 16384));
 
-    const rowCountRange = `${sp}$${firstCol}$${dataStartRow}:$${firstCol}$${bufferRow}`;
-    const colCountRange = `${sp}$${firstCol}$${dataStartRow}:$${bufferCol}$${dataStartRow}`;
+    const parts: string[] = [];
+    for (const cg of colGroups) {
+      const c1 = cg[0];
+      const c2 = cg[cg.length - 1];
+      const cgWidth = cg.length;
+      for (const rg of rowGroups) {
+        const r1 = rg[0];
+        const r2 = rg[rg.length - 1];
+        const rgHeight = rg.length;
+        const needsOffset = expandRows || expandCols;
 
-    const height = expandRows ? `COUNTA(${rowCountRange})` : String(staticHeight);
-    const width = expandCols ? `COUNTA(${colCountRange})` : String(staticWidth);
-
-    const formula = `=OFFSET(${anchor},0,0,${height},${width})`;
+        if (needsOffset) {
+          const anchor = `${sp}$${c1}$${r1}`;
+          let height: string;
+          if (expandRows) {
+            const rowCountRange = `${sp}$${c1}$${r1}:$${c1}$${bufferRow}`;
+            height = `COUNTA(${rowCountRange})`;
+          } else {
+            height = String(rgHeight);
+          }
+          let width: string;
+          if (expandCols) {
+            const bufferCol = numToCol(Math.min(colToNum(c2) + 500, 16384));
+            const colCountRange = `${sp}$${c1}$${r1}:$${bufferCol}$${r1}`;
+            width = `COUNTA(${colCountRange})`;
+          } else {
+            width = String(cgWidth);
+          }
+          parts.push(`OFFSET(${anchor},0,0,${height},${width})`);
+        } else {
+          parts.push(`${sp}$${c1}$${r1}:$${c2}$${r2}`);
+        }
+      }
+    }
 
     return {
-      refersTo: formula,
+      refersTo: `=${parts.join(",")}`,
       skipRows: topSkipCount,
       skipCols: leftSkipCount,
       fixedRef: "",
@@ -202,7 +254,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
       lastColOnly: false,
       lastRowOnly: false,
     };
-  }, [selectionData, activeColIndices, topSkipCount, leftSkipCount, expandRows, expandCols]);
+  }, [selectionData, activeColIndices, activeRowIndices, topSkipCount, leftSkipCount, expandRows, expandCols]);
 
   const handleSave = () => {
     const err = validateName(name);
