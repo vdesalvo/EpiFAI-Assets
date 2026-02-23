@@ -296,9 +296,10 @@ export async function addName(name: string, formula: string, comment = "", scope
   return Excel.run(async (ctx) => {
     const raw = formula.replace(/^=/, "");
     const hasFunction = /[A-Z]+\(/.test(raw.toUpperCase());
+    const isUnion = splitFormulaTopLevel(raw).length > 1;
 
     let item;
-    if (hasFunction) {
+    if (hasFunction || isUnion) {
       const ref = raw.startsWith("=") ? raw : `=${raw}`;
       item = scope === "Workbook"
         ? ctx.workbook.names.add(name, ref)
