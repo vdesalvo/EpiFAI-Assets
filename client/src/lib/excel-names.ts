@@ -563,165 +563,124 @@ export async function exportNameToSheet(params: { name: string; scope: string })
 
     const formula = namedItem.formula;
     const rawFormula = formula.replace(/^=/, "");
-    const isDynamic = /OFFSET\(|INDIRECT\(|INDEX\(/i.test(rawFormula);
 
-    if (!isDynamic) {
-      let simpleValues: any[][];
-      try {
-        const range = namedItem.getRange();
-        range.load("values");
-        await ctx.sync();
-        simpleValues = range.values;
-      } catch (e) {
-        throw new Error("Could not read the named range values.");
-      }
+    const formulaParts = splitFormulaTopLevel(rawFormula);
+    const partValues: any[][][] = [];
+    const tempNames: string[] = [];
 
-      if (!simpleValues || simpleValues.length === 0) {
-        throw new Error("Named range has no data to export");
-      }
+    try {
+      for (let i = 0; i < formulaParts.length; i++) {
+        const part = formulaParts[i].trim();
+        const hasDynFunc = /OFFSET\(|INDIRECT\(|INDEX\(/i.test(part);
 
-      let exportSheet = ctx.workbook.worksheets.getItemOrNullObject("Epifai_Export");
-      exportSheet.load("isNullObject");
-      await ctx.sync();
-
-      if (exportSheet.isNullObject) {
-        exportSheet = ctx.workbook.worksheets.add("Epifai_Export");
-      }
-
-      const usedRange = exportSheet.getUsedRangeOrNullObject();
-      usedRange.load("isNullObject,columnCount,columnIndex");
-      await ctx.sync();
-
-      let startCol = 0;
-      if (!usedRange.isNullObject) {
-        startCol = usedRange.columnIndex + usedRange.columnCount + 1;
-      }
-
-      const rowCount = simpleValues.length;
-      const colCount = simpleValues[0].length;
-
-      const headerRow: any[] = [params.name];
-      for (let i = 1; i < colCount; i++) headerRow.push("");
-      const headerCell = exportSheet.getRangeByIndexes(0, startCol, 1, colCount);
-      headerCell.values = [headerRow];
-      headerCell.format.font.bold = true;
-
-      const dataRange = exportSheet.getRangeByIndexes(1, startCol, rowCount, colCount);
-      dataRange.values = simpleValues;
-
-      const fullRange = exportSheet.getRangeByIndexes(0, startCol, rowCount + 1, colCount);
-      fullRange.format.autofitColumns();
-
-      exportSheet.activate();
-      await ctx.sync();
-
-      fullRange.select();
-      await ctx.sync();
-
-      return { rowCount, colCount };
-    } else {
-      const formulaParts = splitFormulaTopLevel(rawFormula);
-      const partValues: any[][][] = [];
-      const tempNames: string[] = [];
-
-      try {
-        for (let i = 0; i < formulaParts.length; i++) {
-          const part = formulaParts[i].trim();
-          const hasDynFunc = /OFFSET\(|INDIRECT\(|INDEX\(/i.test(part);
-
-          if (!hasDynFunc) {
-            const sheetMatch = part.match(/^(?:'([^']+)'|([A-Za-z0-9_]+))!/);
-            if (sheetMatch) {
-              const sheetName = sheetMatch[1] || sheetMatch[2];
-              const ref = part.substring(sheetMatch[0].length);
-              const partRange = ctx.workbook.worksheets.getItem(sheetName).getRange(ref);
-              partRange.load("values");
-              await ctx.sync();
-              partValues.push(partRange.values);
-            }
+        if (!hasDynFunc) {
+          const sheetMatch = part.match(/^(?:'([^']+)'|([A-Za-z0-9_]+))!/);
+          if (sheetMatch) {
+            const sheetName = sheetMatch[1] || sheetMatch[2];
+            const ref = part.substring(sheetMatch[0].length);
+            const partRange = ctx.workbook.worksheets.getItem(sheetName).getRange(ref);
+            partRange.load("values");
+            await ctx.sync();
+            partValues.push(partRange.values);
           } else {
-            const tempName = `_epifai_tmp_${Date.now()}_${i}`;
-            tempNames.push(tempName);
-            ctx.workbook.names.add(tempName, `=${part}`);
-            await ctx.sync();
-
-            const tempItem = ctx.workbook.names.getItem(tempName);
-            const resolved = tempItem.getRangeOrNullObject();
-            resolved.load("isNullObject,values");
-            await ctx.sync();
-
-            if (!resolved.isNullObject) {
-              partValues.push(resolved.values);
-            }
-
-            tempItem.delete();
-            await ctx.sync();
+            try {
+              const tempName = `_epifai_tmp_${Date.now()}_s${i}`;
+              tempNames.push(tempName);
+              ctx.workbook.names.add(tempName, `=${part}`);
+              await ctx.sync();
+              const tempItem = ctx.workbook.names.getItem(tempName);
+              const resolved = tempItem.getRangeOrNullObject();
+              resolved.load("isNullObject,values");
+              await ctx.sync();
+              if (!resolved.isNullObject) {
+                partValues.push(resolved.values);
+              }
+              tempItem.delete();
+              await ctx.sync();
+            } catch (_) {}
           }
-        }
+        } else {
+          const tempName = `_epifai_tmp_${Date.now()}_${i}`;
+          tempNames.push(tempName);
+          ctx.workbook.names.add(tempName, `=${part}`);
+          await ctx.sync();
 
-        if (partValues.length === 0) {
-          throw new Error("No data could be read from the named range.");
-        }
-      } catch (err: any) {
-        for (const tn of tempNames) {
-          try {
-            const c = ctx.workbook.names.getItem(tn);
-            c.delete();
-            await ctx.sync();
-          } catch (_) {}
-        }
-        if (err.message === "No data could be read from the named range.") throw err;
-        throw new Error("Could not resolve this dynamic named range for export.");
-      }
+          const tempItem = ctx.workbook.names.getItem(tempName);
+          const resolved = tempItem.getRangeOrNullObject();
+          resolved.load("isNullObject,values");
+          await ctx.sync();
 
-      let exportSheet = ctx.workbook.worksheets.getItemOrNullObject("Epifai_Export");
-      exportSheet.load("isNullObject");
-      await ctx.sync();
+          if (!resolved.isNullObject) {
+            partValues.push(resolved.values);
+          }
 
-      if (exportSheet.isNullObject) {
-        exportSheet = ctx.workbook.worksheets.add("Epifai_Export");
-      }
-
-      const usedRange = exportSheet.getUsedRangeOrNullObject();
-      usedRange.load("isNullObject,columnCount,columnIndex");
-      await ctx.sync();
-
-      let startCol = 0;
-      if (!usedRange.isNullObject) {
-        startCol = usedRange.columnIndex + usedRange.columnCount + 1;
-      }
-
-      const totalCols = partValues.reduce((sum, pv) => sum + (pv[0]?.length || 0), 0);
-      const maxRows = Math.max(...partValues.map(v => v.length));
-
-      const headerRow: any[] = [params.name];
-      for (let i = 1; i < totalCols; i++) headerRow.push("");
-      const headerCell = exportSheet.getRangeByIndexes(0, startCol, 1, totalCols);
-      headerCell.values = [headerRow];
-      headerCell.format.font.bold = true;
-
-      let colOffset = startCol;
-      for (const pv of partValues) {
-        const pvRows = pv.length;
-        const pvCols = pv[0]?.length || 0;
-        if (pvRows > 0 && pvCols > 0) {
-          const dataRange = exportSheet.getRangeByIndexes(1, colOffset, pvRows, pvCols);
-          dataRange.values = pv;
-          colOffset += pvCols;
+          tempItem.delete();
+          await ctx.sync();
         }
       }
 
-      const fullRange = exportSheet.getRangeByIndexes(0, startCol, maxRows + 1, totalCols);
-      fullRange.format.autofitColumns();
-
-      exportSheet.activate();
-      await ctx.sync();
-
-      fullRange.select();
-      await ctx.sync();
-
-      return { rowCount: maxRows, colCount: totalCols };
+      if (partValues.length === 0) {
+        throw new Error("No data could be read from the named range.");
+      }
+    } catch (err: any) {
+      for (const tn of tempNames) {
+        try {
+          const c = ctx.workbook.names.getItem(tn);
+          c.delete();
+          await ctx.sync();
+        } catch (_) {}
+      }
+      if (err.message === "No data could be read from the named range.") throw err;
+      throw new Error("Could not resolve this named range for export.");
     }
+
+    let exportSheet = ctx.workbook.worksheets.getItemOrNullObject("Epifai_Export");
+    exportSheet.load("isNullObject");
+    await ctx.sync();
+
+    if (exportSheet.isNullObject) {
+      exportSheet = ctx.workbook.worksheets.add("Epifai_Export");
+    }
+
+    const usedRange = exportSheet.getUsedRangeOrNullObject();
+    usedRange.load("isNullObject,columnCount,columnIndex");
+    await ctx.sync();
+
+    let startCol = 0;
+    if (!usedRange.isNullObject) {
+      startCol = usedRange.columnIndex + usedRange.columnCount + 1;
+    }
+
+    const totalCols = partValues.reduce((sum, pv) => sum + (pv[0]?.length || 0), 0);
+    const maxRows = Math.max(...partValues.map(v => v.length));
+
+    const headerRow: any[] = [params.name];
+    for (let i = 1; i < totalCols; i++) headerRow.push("");
+    const headerCell = exportSheet.getRangeByIndexes(0, startCol, 1, totalCols);
+    headerCell.values = [headerRow];
+    headerCell.format.font.bold = true;
+
+    let colOffset = startCol;
+    for (const pv of partValues) {
+      const pvRows = pv.length;
+      const pvCols = pv[0]?.length || 0;
+      if (pvRows > 0 && pvCols > 0) {
+        const dataRange = exportSheet.getRangeByIndexes(1, colOffset, pvRows, pvCols);
+        dataRange.values = pv;
+        colOffset += pvCols;
+      }
+    }
+
+    const fullRange = exportSheet.getRangeByIndexes(0, startCol, maxRows + 1, totalCols);
+    fullRange.format.autofitColumns();
+
+    exportSheet.activate();
+    await ctx.sync();
+
+    fullRange.select();
+    await ctx.sync();
+
+    return { rowCount: maxRows, colCount: totalCols };
   });
 }
 
