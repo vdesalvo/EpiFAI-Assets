@@ -209,29 +209,38 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
     }
 
     const bufferRow = Math.min(endRow + 500, 1048576);
+    const hasColGaps = colGroups.length > 1;
+    const hasRowGaps = rowGroups.length > 1;
 
     const parts: string[] = [];
-    for (const cg of colGroups) {
+    for (let cgIdx = 0; cgIdx < colGroups.length; cgIdx++) {
+      const cg = colGroups[cgIdx];
       const c1 = cg[0];
       const c2 = cg[cg.length - 1];
       const cgWidth = cg.length;
-      for (const rg of rowGroups) {
+      const isLastColGroup = cgIdx === colGroups.length - 1;
+
+      for (let rgIdx = 0; rgIdx < rowGroups.length; rgIdx++) {
+        const rg = rowGroups[rgIdx];
         const r1 = rg[0];
         const r2 = rg[rg.length - 1];
         const rgHeight = rg.length;
-        const needsOffset = expandRows || expandCols;
+        const isLastRowGroup = rgIdx === rowGroups.length - 1;
 
-        if (needsOffset) {
+        const useExpandHeight = expandRows && (!hasRowGaps || isLastRowGroup);
+        const useExpandWidth = expandCols && (!hasColGaps || isLastColGroup);
+
+        if (useExpandHeight || useExpandWidth) {
           const anchor = `${sp}$${c1}$${r1}`;
           let height: string;
-          if (expandRows) {
+          if (useExpandHeight) {
             const rowCountRange = `${sp}$${c1}$${r1}:$${c1}$${bufferRow}`;
             height = `COUNTA(${rowCountRange})`;
           } else {
             height = String(rgHeight);
           }
           let width: string;
-          if (expandCols) {
+          if (useExpandWidth) {
             const bufferCol = numToCol(Math.min(colToNum(c2) + 500, 16384));
             const colCountRange = `${sp}$${c1}$${r1}:$${bufferCol}$${r1}`;
             width = `COUNTA(${colCountRange})`;
