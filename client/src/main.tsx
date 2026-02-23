@@ -5,17 +5,33 @@ import "./index.css";
 const root = createRoot(document.getElementById("root")!);
 
 const renderApp = () => {
-  root.render(<App />);
+  try {
+    root.render(<App />);
+  } catch (e) {
+    console.error("Failed to render app:", e);
+    document.getElementById("root")!.innerHTML = `<div style="padding:20px;font-family:sans-serif"><h3>Failed to load</h3><p>${e}</p></div>`;
+  }
 };
 
-if (typeof Office !== "undefined") {
-  Office.onReady(renderApp);
+const initWithTimeout = () => {
+  let rendered = false;
+
+  const doRender = () => {
+    if (rendered) return;
+    rendered = true;
+    renderApp();
+  };
+
+  if (typeof Office !== "undefined" && Office.onReady) {
+    Office.onReady(() => doRender());
+    setTimeout(doRender, 5000);
+  } else {
+    doRender();
+  }
+};
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initWithTimeout);
 } else {
-  window.addEventListener("load", () => {
-    if (typeof Office !== "undefined") {
-      Office.onReady(renderApp);
-    } else {
-      renderApp();
-    }
-  });
+  initWithTimeout();
 }

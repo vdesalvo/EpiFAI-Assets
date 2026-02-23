@@ -113,7 +113,7 @@ export async function registerRoutes(
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     res.removeHeader("X-Frame-Options");
-    res.removeHeader("Content-Security-Policy");
+    res.header("Content-Security-Policy", "frame-ancestors 'self' https://*.microsoft.com https://*.office.com https://*.office365.com https://*.officeppe.com https://*.officeapps.live.com");
     if (req.method === "OPTIONS") {
       return res.sendStatus(200);
     }
