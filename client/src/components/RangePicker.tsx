@@ -373,11 +373,13 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                                     ? "bg-emerald-50 text-emerald-700 border-r-2 border-r-emerald-400 dark:bg-emerald-950/20 dark:text-emerald-300"
                                     : "bg-muted/50 text-muted-foreground hover:bg-muted"
                               )}
-                              onPointerDown={(e) => { e.preventDefault(); toggleColSkip(ci); }}
+                              onClick={() => toggleColSkip(ci)}
                               title={isSkipped ? `Click to include column ${colLetter}` : `Click to skip column ${colLetter}`}
                               data-testid={`col-header-${colLetter}`}
+                              role="button"
+                              tabIndex={0}
                             >
-                              {colLetter}
+                              {colLetter}{isSkipped ? " ✕" : ""}
                             </th>
                           );
                         })}
@@ -405,11 +407,13 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                                     ? "bg-emerald-50 text-emerald-700 border-b-2 border-b-emerald-400 dark:bg-emerald-950/20 dark:text-emerald-300"
                                     : "bg-muted/50 text-muted-foreground hover:bg-muted"
                               )}
-                              onPointerDown={(e) => { e.preventDefault(); toggleRowSkip(ri); }}
+                              onClick={() => toggleRowSkip(ri)}
                               title={isRowSkipped ? `Click to include row ${rowNum}` : `Click to skip row ${rowNum}`}
                               data-testid={`row-header-${rowNum}`}
+                              role="button"
+                              tabIndex={0}
                             >
-                              {rowNum}
+                              {rowNum}{isRowSkipped ? " ✕" : ""}
                             </td>
                             {Array.from({ length: previewCols }, (_, ci) => {
                               const isDimmed = isRowSkipped || skippedCols.has(ci);
@@ -478,14 +482,12 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
             </div>
 
             <div className="bg-muted/50 border rounded-md p-2.5 space-y-1">
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Summary</p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Formula Preview</p>
               <div className="text-[11px] text-foreground space-y-0.5">
-                {selectionData && activeColIndices.length > 0 && (
-                  <p className="font-mono text-[10px] break-all">
-                    {sheetPrefix(selectionData.sheet)}${activeColIndices.map(i => selectionData.columns[i])[0]}${selectionData.startRow + topSkipCount}:${activeColIndices.map(i => selectionData.columns[i]).slice(-1)[0]}${selectionData.endRow}
-                  </p>
-                )}
-                <p>{activeColIndices.length} active column{activeColIndices.length !== 1 ? "s" : ""}, {activeRowIndices.length} active row{activeRowIndices.length !== 1 ? "s" : ""}</p>
+                {(() => { const r = buildResult(); return r ? (
+                  <p className="font-mono text-[10px] break-all" data-testid="text-formula-preview">{r.refersTo}</p>
+                ) : null; })()}
+                <p>{activeColIndices.length} active column{activeColIndices.length !== 1 ? "s" : ""}{skippedCols.size > 0 ? ` (${skippedCols.size} skipped)` : ""}, {activeRowIndices.length} active row{activeRowIndices.length !== 1 ? "s" : ""}{skippedRows.size > 0 ? ` (${skippedRows.size} skipped)` : ""}</p>
                 {expandCols && <p className="text-emerald-600 dark:text-emerald-400">↔ Columns will auto-expand</p>}
                 {expandRows && <p className="text-emerald-600 dark:text-emerald-400">↕ Rows will auto-expand</p>}
               </div>
