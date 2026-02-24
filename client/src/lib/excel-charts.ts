@@ -15,41 +15,61 @@ export async function getAllCharts(): Promise<ExcelChart[]> {
       const sheets = ctx.workbook.worksheets;
       sheets.load("items/name");
       await ctx.sync();
-      const charts: ExcelChart[] = [];
+
+      const results: ExcelChart[] = [];
+
       for (const sheet of sheets.items) {
         try {
           const chartsCol = sheet.charts;
-          chartsCol.load("items/name,items/id");
+          chartsCol.load("count");
           await ctx.sync();
+
+          if (chartsCol.count === 0) continue;
+
+          chartsCol.load("items");
+          await ctx.sync();
+
           for (const chart of chartsCol.items) {
+            try {
+              chart.load("id,name");
+              await ctx.sync();
+            } catch {
+              continue;
+            }
+
             let titleText = "(No Title)";
             try {
-              chart.load("title/text");
+              const titleObj = chart.title;
+              titleObj.load("text");
               await ctx.sync();
-              titleText = chart.title?.text || "(No Title)";
-            } catch { /* title not available */ }
-            charts.push({
+              titleText = titleObj.text || "(No Title)";
+            } catch {
+              // title not available or not set
+            }
+
+            results.push({
               id: chart.id,
               name: chart.name,
               title: titleText,
-              sheet: sheet.name
+              sheet: sheet.name,
             });
           }
         } catch (sheetErr) {
           console.warn(`Could not load charts for sheet "${sheet.name}":`, sheetErr);
         }
       }
-      return charts;
+
+      return results;
     });
   } catch (error) {
     console.error("getAllCharts error:", error);
-    if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
+    if (!window.hasOwnProperty("Excel")) {
       return [
         { id: "c1", name: "Chart 1", title: "Sales 2024", sheet: "Sheet1" },
-        { id: "c2", name: "Chart 2", title: "Growth", sheet: "Sheet1" }
+        { id: "c2", name: "Chart 2", title: "Growth", sheet: "Sheet1" },
       ];
     }
-    throw error;
+    return [];
   }
 }
 

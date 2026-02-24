@@ -87,6 +87,7 @@ declare namespace Excel {
 
   interface ChartCollection {
     items: Chart[];
+    count: number;
     getItem(name: string): Chart;
     load(propertyNames?: string | string[]): void;
   }
@@ -105,10 +106,15 @@ declare namespace Excel {
     load(propertyNames?: string | string[]): void;
   }
 
+  interface ChartTitle {
+    text: string;
+    load(propertyNames?: string | string[]): void;
+  }
+
   interface Chart {
     id: string;
     name: string;
-    title: { text: string };
+    title: ChartTitle;
     series: ChartSeriesCollection;
     activate(): void;
     getImage(): { value: string };
