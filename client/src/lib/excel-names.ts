@@ -160,6 +160,8 @@ export interface SelectionData {
   colCount: number;      // Number of columns
   rowCount: number;      // Number of rows
   columns: string[];     // Array of column letters ["A","B","C",...]
+  colOverflowByRow?: Record<number, number>;  // Per-row count of non-empty cells in columns beyond selection end
+  rowOverflowByCol?: Record<string, number>;  // Per-col count of non-empty cells in rows beyond selection end
 }
 
 function isDynamicFormula(formula: string): boolean {
@@ -850,7 +852,48 @@ export async function readRangeData(rangeAddress: string): Promise<SelectionData
       for (let i = startColNum; i <= endColNum; i++) {
         columns.push(numToCol(i));
       }
-      return { address: range.address, sheet, values, startCol, endCol, startRow, endRow, colCount, rowCount, columns };
+
+      const colOverflowByRow: Record<number, number> = {};
+      const rowOverflowByCol: Record<string, number> = {};
+      try {
+        const bufferSize = 500;
+        const nextColNum = endColNum + 1;
+        const nextRow = endRow + 1;
+        if (nextColNum <= 16384) {
+          const overflowColEnd = Math.min(nextColNum + bufferSize - 1, 16384);
+          const colBufferRange = ws.getRange(
+            `${numToCol(nextColNum)}${startRow}:${numToCol(overflowColEnd)}${endRow}`
+          );
+          colBufferRange.load("values");
+          await ctx.sync();
+          const bufVals = colBufferRange.values;
+          for (let r = 0; r < bufVals.length; r++) {
+            const rowNum = startRow + r;
+            const cnt = bufVals[r].filter((v: any) => v !== null && v !== undefined && v !== "").length;
+            if (cnt > 0) colOverflowByRow[rowNum] = cnt;
+          }
+        }
+        if (nextRow <= 1048576) {
+          const overflowRowEnd = Math.min(nextRow + bufferSize - 1, 1048576);
+          const rowBufferRange = ws.getRange(
+            `${startCol}${nextRow}:${endCol}${overflowRowEnd}`
+          );
+          rowBufferRange.load("values");
+          await ctx.sync();
+          const bufVals = rowBufferRange.values;
+          const startColNum2 = colToNum(startCol);
+          for (let c = 0; c < (bufVals[0]?.length ?? 0); c++) {
+            const colLetter = numToCol(startColNum2 + c);
+            let cnt = 0;
+            for (let r = 0; r < bufVals.length; r++) {
+              if (bufVals[r][c] !== null && bufVals[r][c] !== undefined && bufVals[r][c] !== "") cnt++;
+            }
+            if (cnt > 0) rowOverflowByCol[colLetter] = cnt;
+          }
+        }
+      } catch { /* overflow check failed */ }
+
+      return { address: range.address, sheet, values, startCol, endCol, startRow, endRow, colCount, rowCount, columns, colOverflowByRow, rowOverflowByCol };
     });
   } catch (error) {
     console.error("Error reading range data:", error);
@@ -906,6 +949,45 @@ export async function getSelectionData(): Promise<SelectionData> {
         columns.push(numToCol(i));
       }
 
+      const colOverflowByRow: Record<number, number> = {};
+      const rowOverflowByCol: Record<string, number> = {};
+      try {
+        const bufferSize = 500;
+        const nextColNum = endColNum + 1;
+        const nextRow = endRow + 1;
+        if (nextColNum <= 16384) {
+          const overflowColEnd = Math.min(nextColNum + bufferSize - 1, 16384);
+          const colBufferRange = worksheet.getRange(
+            `${numToCol(nextColNum)}${startRow}:${numToCol(overflowColEnd)}${endRow}`
+          );
+          colBufferRange.load("values");
+          await ctx.sync();
+          const bufVals = colBufferRange.values;
+          for (let r = 0; r < bufVals.length; r++) {
+            const rowNum = startRow + r;
+            const cnt = bufVals[r].filter((v: any) => v !== null && v !== undefined && v !== "").length;
+            if (cnt > 0) colOverflowByRow[rowNum] = cnt;
+          }
+        }
+        if (nextRow <= 1048576) {
+          const overflowRowEnd = Math.min(nextRow + bufferSize - 1, 1048576);
+          const rowBufferRange = worksheet.getRange(
+            `${startCol}${nextRow}:${endCol}${overflowRowEnd}`
+          );
+          rowBufferRange.load("values");
+          await ctx.sync();
+          const bufVals = rowBufferRange.values;
+          for (let c = 0; c < (bufVals[0]?.length ?? 0); c++) {
+            const colLetter = numToCol(startColNum + c);
+            let cnt = 0;
+            for (let r = 0; r < bufVals.length; r++) {
+              if (bufVals[r][c] !== null && bufVals[r][c] !== undefined && bufVals[r][c] !== "") cnt++;
+            }
+            if (cnt > 0) rowOverflowByCol[colLetter] = cnt;
+          }
+        }
+      } catch { /* overflow check failed, use empty */ }
+
       return {
         address,
         sheet,
@@ -917,6 +999,8 @@ export async function getSelectionData(): Promise<SelectionData> {
         colCount,
         rowCount,
         columns,
+        colOverflowByRow,
+        rowOverflowByCol,
       };
     });
   } catch (error) {

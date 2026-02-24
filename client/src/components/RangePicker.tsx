@@ -243,7 +243,14 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
       };
     }
 
-    const bufferRow = Math.min(endRow + 500, 1048576);
+    const selEndColNum = colToNum(selectionData.endCol);
+    const selEndRow = selectionData.endRow;
+    const colOverflowByRow = selectionData.colOverflowByRow ?? {};
+    const rowOverflowByCol = selectionData.rowOverflowByCol ?? {};
+    const bufferColStart = selEndColNum + 1;
+    const bufferRowStart = selEndRow + 1;
+    const bufferColEnd = Math.min(bufferColStart + 500, 16384);
+    const bufferRowEnd = Math.min(bufferRowStart + 500, 1048576);
     const hasColGaps = colGroups.length > 1;
     const hasRowGaps = rowGroups.length > 1;
 
@@ -269,18 +276,28 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
           const anchor = `${sp}$${c1}$${r1}`;
           let height: string;
           if (useExpandHeight) {
-            const nextRow = r2 + 1;
-            const extraRange = `${sp}$${c1}$${nextRow}:$${c1}$${bufferRow}`;
-            height = `${rgHeight}+COUNTA(${extraRange})`;
+            const nextRow = bufferRowStart;
+            const extraRange = `${sp}$${c1}$${nextRow}:$${c1}$${bufferRowEnd}`;
+            const rowBaseline = rowOverflowByCol[c1] ?? 0;
+            if (rowBaseline > 0) {
+              height = `${rgHeight}+MAX(0,COUNTA(${extraRange})-${rowBaseline})`;
+            } else {
+              height = `${rgHeight}+COUNTA(${extraRange})`;
+            }
           } else {
             height = String(rgHeight);
           }
           let width: string;
           if (useExpandWidth) {
-            const nextCol = numToCol(colToNum(c2) + 1);
-            const bufferCol = numToCol(Math.min(colToNum(c2) + 500, 16384));
+            const nextCol = numToCol(bufferColStart);
+            const bufferCol = numToCol(bufferColEnd);
             const extraRange = `${sp}$${nextCol}$${r1}:$${bufferCol}$${r1}`;
-            width = `${cgWidth}+COUNTA(${extraRange})`;
+            const colBaseline = colOverflowByRow[r1] ?? 0;
+            if (colBaseline > 0) {
+              width = `${cgWidth}+MAX(0,COUNTA(${extraRange})-${colBaseline})`;
+            } else {
+              width = `${cgWidth}+COUNTA(${extraRange})`;
+            }
           } else {
             width = String(cgWidth);
           }
