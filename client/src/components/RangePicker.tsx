@@ -288,25 +288,16 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
           let height: string;
           if (useExpandHeight) {
             const nextRow = bufferRowStart;
+            const maxBuf = bufferRowEnd - nextRow + 1;
             const useLabelCol = labelColNum < selStartColNum;
+            const contiguous = (col: string) => {
+              const bufRange = `${sp}$${col}$${nextRow}:$${col}$${bufferRowEnd}`;
+              return `IFERROR(MATCH(TRUE,INDEX(${bufRange}="",0),0)-1,${maxBuf})`;
+            };
             if (useLabelCol) {
-              const labelRange = `${sp}$${labelCol}$${nextRow}:$${labelCol}$${bufferRowEnd}`;
-              const dataRange = `${sp}$${c1}$${nextRow}:$${c1}$${bufferRowEnd}`;
-              const labelBaseline = rowOverflowByCol[labelCol] ?? 0;
-              const dataBaseline = rowOverflowByCol[c1] ?? 0;
-              if (labelBaseline > 0 || dataBaseline > 0) {
-                height = `${rgHeight}+MAX(0,COUNTA(${labelRange})-${labelBaseline},COUNTA(${dataRange})-${dataBaseline})`;
-              } else {
-                height = `${rgHeight}+MAX(COUNTA(${labelRange}),COUNTA(${dataRange}))`;
-              }
+              height = `${rgHeight}+MAX(${contiguous(labelCol)},${contiguous(c1)})`;
             } else {
-              const extraRange = `${sp}$${c1}$${nextRow}:$${c1}$${bufferRowEnd}`;
-              const rowBaseline = rowOverflowByCol[c1] ?? 0;
-              if (rowBaseline > 0) {
-                height = `${rgHeight}+MAX(0,COUNTA(${extraRange})-${rowBaseline})`;
-              } else {
-                height = `${rgHeight}+COUNTA(${extraRange})`;
-              }
+              height = `${rgHeight}+${contiguous(c1)}`;
             }
           } else {
             height = String(rgHeight);
