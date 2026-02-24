@@ -32,8 +32,8 @@ interface RangePickerProps {
   editTarget?: ExcelName | null;
 }
 
-const MAX_PREVIEW_ROWS = 8;
-const MAX_PREVIEW_COLS = 10;
+const MAX_PREVIEW_ROWS = 200;
+const MAX_PREVIEW_COLS = 500;
 
 function colToNum(col: string): number {
   let num = 0;
@@ -403,11 +403,11 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                 <span className="text-[9px] text-muted-foreground">Click headers to dim/skip</span>
               </div>
               <div className="border rounded-lg overflow-hidden bg-card">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[10px] border-collapse" data-testid="table-range-preview">
-                    <thead>
+                <div className="overflow-auto max-h-[280px]">
+                  <table className="text-[10px] border-collapse" data-testid="table-range-preview">
+                    <thead className="sticky top-0 z-10">
                       <tr>
-                        <th className="w-8 min-w-[32px] bg-muted/50 border-b border-r p-0" />
+                        <th className="w-8 min-w-[32px] bg-muted/50 border-b border-r p-0 sticky left-0 z-20" />
                         {Array.from({ length: previewCols }, (_, ci) => {
                           const colLetter = selectionData.columns[ci];
                           const isSkipped = skippedCols.has(ci);
@@ -449,7 +449,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
 
                         return (
                           <tr key={ri}>
-                            <td className="p-0 border-r border-b">
+                            <td className="p-0 border-r border-b sticky left-0 z-[5]">
                               <button
                                 type="button"
                                 className={cn(
