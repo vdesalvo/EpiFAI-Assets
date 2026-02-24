@@ -349,7 +349,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
         <p className="text-xs text-muted-foreground">{isEditing ? "Re-pick the range in Excel and adjust settings." : "Select a range in Excel, then configure it visually."}</p>
       </div>
 
-      <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+      <div className="space-y-4 flex-1 overflow-y-auto overflow-x-hidden pr-1">
         <div className="space-y-2">
           <Label htmlFor="vp-name" className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Name</Label>
           <Input
@@ -402,7 +402,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Range Preview</Label>
                 <span className="text-[9px] text-muted-foreground">Click headers to dim/skip</span>
               </div>
-              <div className="border rounded-lg overflow-hidden bg-card">
+              <div className="border rounded-lg bg-card">
                 <div className="overflow-auto max-h-[280px]">
                   <table className="text-[10px] border-collapse" data-testid="table-range-preview">
                     <thead className="sticky top-0 z-10">
