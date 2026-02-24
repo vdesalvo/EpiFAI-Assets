@@ -93,13 +93,43 @@ export function buildSkipRowIndicesTag(indices: number[]): string {
   return `[skipridx:${indices.join(",")}]`;
 }
 
+function encodeOverflow(entries: [string, number][]): string {
+  if (entries.length === 0) return "";
+  const vals = entries.map(([, v]) => v);
+  const allSame = vals.every(v => v === vals[0]);
+  if (allSame) {
+    const keys = entries.map(([k]) => k);
+    return `${keys.join(",")}=${vals[0]}`;
+  }
+  return entries.map(([k, v]) => `${k}:${v}`).join(",");
+}
+
+function decodeOverflow(s: string): [string, number][] {
+  if (!s) return [];
+  const eqIdx = s.lastIndexOf("=");
+  if (eqIdx > 0 && !s.substring(0, eqIdx).includes(":")) {
+    const keys = s.substring(0, eqIdx).split(",");
+    const val = parseInt(s.substring(eqIdx + 1), 10);
+    return keys.map(k => [k, val]);
+  }
+  return s.split(",").map(p => {
+    const [k, v] = p.split(":");
+    return [k, parseInt(v, 10)];
+  });
+}
+
 export function parseColOverflowTag(comment: string): Record<number, number> {
   const m = comment.match(COLOVERFLOW_TAG_RE);
   if (!m) return {};
   try {
-    const raw = JSON.parse(m[1]);
+    if (m[1].startsWith("{")) {
+      const raw = JSON.parse(m[1]);
+      const result: Record<number, number> = {};
+      for (const k in raw) result[Number(k)] = raw[k];
+      return result;
+    }
     const result: Record<number, number> = {};
-    for (const k in raw) result[Number(k)] = raw[k];
+    for (const [k, v] of decodeOverflow(m[1])) result[Number(k)] = v;
     return result;
   } catch { return {}; }
 }
@@ -107,17 +137,24 @@ export function parseColOverflowTag(comment: string): Record<number, number> {
 export function parseRowOverflowTag(comment: string): Record<string, number> {
   const m = comment.match(ROWOVERFLOW_TAG_RE);
   if (!m) return {};
-  try { return JSON.parse(m[1]); } catch { return {}; }
+  try {
+    if (m[1].startsWith("{")) return JSON.parse(m[1]);
+    const result: Record<string, number> = {};
+    for (const [k, v] of decodeOverflow(m[1])) result[k] = v;
+    return result;
+  } catch { return {}; }
 }
 
 export function buildColOverflowTag(overflow: Record<number, number>): string {
   if (!overflow || Object.keys(overflow).length === 0) return "";
-  return `[coloverflow:${JSON.stringify(overflow)}]`;
+  const entries: [string, number][] = Object.entries(overflow).map(([k, v]) => [k, v]);
+  return `[coloverflow:${encodeOverflow(entries)}]`;
 }
 
 export function buildRowOverflowTag(overflow: Record<string, number>): string {
   if (!overflow || Object.keys(overflow).length === 0) return "";
-  return `[rowoverflow:${JSON.stringify(overflow)}]`;
+  const entries: [string, number][] = Object.entries(overflow);
+  return `[rowoverflow:${encodeOverflow(entries)}]`;
 }
 
 export function stripMetaTags(comment: string): string {
@@ -388,7 +425,7 @@ export async function claimAsEpifai(name: string, scope: string): Promise<void> 
     await ctx.sync();
     const current = item.comment || "";
     if (!current.includes(EPIFAI_TAG)) {
-      item.comment = current ? `${current} ${EPIFAI_TAG}` : EPIFAI_TAG;
+      item.comment = current ? `${EPIFAI_TAG} ${current}` : EPIFAI_TAG;
       await ctx.sync();
     }
   });
@@ -438,7 +475,7 @@ export async function addName(name: string, formula: string, comment = "", scope
     const skipRIdxTag = buildSkipRowIndicesTag(skippedRowIndices);
     const colOverflowTag = buildColOverflowTag(colOverflowByRow);
     const rowOverflowTag = buildRowOverflowTag(rowOverflowByCol);
-    const parts = [comment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag, colOverflowTag, rowOverflowTag, EPIFAI_TAG].filter(Boolean);
+    const parts = [EPIFAI_TAG, comment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag, colOverflowTag, rowOverflowTag].filter(Boolean);
     item.comment = parts.join(" ");
     await ctx.sync();
   });
@@ -481,7 +518,7 @@ export async function updateName(name: string, updates: UpdateNameParams): Promi
     const skipRIdxTag = buildSkipRowIndicesTag(srIdx);
     const colOverflowTag = buildColOverflowTag(colOvf);
     const rowOverflowTag = buildRowOverflowTag(rowOvf);
-    const parts = [userComment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag, colOverflowTag, rowOverflowTag, hadEpifaiTag ? EPIFAI_TAG : ""].filter(Boolean);
+    const parts = [hadEpifaiTag ? EPIFAI_TAG : "", userComment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag, colOverflowTag, rowOverflowTag].filter(Boolean);
     item.comment = parts.join(" ");
     
     if (updates.newName && updates.newName !== item.name) {
