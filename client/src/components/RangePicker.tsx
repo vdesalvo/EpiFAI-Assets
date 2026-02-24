@@ -262,10 +262,12 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
     const lastActiveCol = colToNum(lastColGroup[lastColGroup.length - 1]);
     const lastRowGroup = rowGroups[rowGroups.length - 1];
     const lastActiveRow = lastRowGroup[lastRowGroup.length - 1];
-    const bufferColStart = lastActiveCol + 1;
-    const bufferRowStart = lastActiveRow + 1;
+    const bufferColStart = selEndColNum + 1;
+    const bufferRowStart = selEndRow + 1;
     const bufferColEnd = Math.min(bufferColStart + 500, 16384);
     const bufferRowEnd = Math.min(bufferRowStart + 500, 1048576);
+    const trailingDimmedRows = selEndRow - lastActiveRow;
+    const trailingDimmedCols = selEndColNum - lastActiveCol;
     const hasColGaps = colGroups.length > 1;
     const hasRowGaps = rowGroups.length > 1;
 
@@ -298,10 +300,17 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
               const bufRange = `${sp}$${col}$${nextRow}:$${col}$${bufferRowEnd}`;
               return `IFERROR(MATCH(TRUE,INDEX(${bufRange}="",0),0)-1,${maxBuf})`;
             };
+            let expansionExpr: string;
             if (useLabelCol) {
-              height = `${rgHeight}+MAX(${contiguous(labelCol)},${contiguous(c1)})`;
+              expansionExpr = `MAX(${contiguous(labelCol)},${contiguous(c1)})`;
             } else {
-              height = `${rgHeight}+${contiguous(c1)}`;
+              expansionExpr = contiguous(c1);
+            }
+            const gap = isLastRowGroup ? trailingDimmedRows : 0;
+            if (gap > 0) {
+              height = `${rgHeight}+IF(${expansionExpr}>0,${gap}+${expansionExpr},0)`;
+            } else {
+              height = `${rgHeight}+${expansionExpr}`;
             }
           } else {
             height = String(rgHeight);
@@ -312,10 +321,17 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
             const bufferCol = numToCol(bufferColEnd);
             const extraRange = `${sp}$${nextCol}$${r1}:$${bufferCol}$${r1}`;
             const colBaseline = colOverflowByRow[r1] ?? 0;
+            let colExpansionExpr: string;
             if (colBaseline > 0) {
-              width = `${cgWidth}+MAX(0,COUNTA(${extraRange})-${colBaseline})`;
+              colExpansionExpr = `MAX(0,COUNTA(${extraRange})-${colBaseline})`;
             } else {
-              width = `${cgWidth}+COUNTA(${extraRange})`;
+              colExpansionExpr = `COUNTA(${extraRange})`;
+            }
+            const colGap = isLastColGroup ? trailingDimmedCols : 0;
+            if (colGap > 0) {
+              width = `${cgWidth}+IF(${colExpansionExpr}>0,${colGap}+${colExpansionExpr},0)`;
+            } else {
+              width = `${cgWidth}+${colExpansionExpr}`;
             }
           } else {
             width = String(cgWidth);
