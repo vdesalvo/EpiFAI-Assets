@@ -955,15 +955,17 @@ export async function readRangeData(rangeAddress: string): Promise<SelectionData
         }
         if (nextRow <= 1048576) {
           const overflowRowEnd = Math.min(nextRow + bufferSize - 1, 1048576);
+          const labelColNum = Math.max(1, startColNum - 1);
+          const bufStartCol = labelColNum < startColNum ? numToCol(labelColNum) : startCol;
           const rowBufferRange = ws.getRange(
-            `${startCol}${nextRow}:${endCol}${overflowRowEnd}`
+            `${bufStartCol}${nextRow}:${endCol}${overflowRowEnd}`
           );
           rowBufferRange.load("values");
           await ctx.sync();
           const bufVals = rowBufferRange.values;
-          const startColNum2 = colToNum(startCol);
+          const bufStartColNum = colToNum(bufStartCol);
           for (let c = 0; c < (bufVals[0]?.length ?? 0); c++) {
-            const colLetter = numToCol(startColNum2 + c);
+            const colLetter = numToCol(bufStartColNum + c);
             let cnt = 0;
             for (let r = 0; r < bufVals.length; r++) {
               if (bufVals[r][c] !== null && bufVals[r][c] !== undefined && bufVals[r][c] !== "") cnt++;
@@ -1051,14 +1053,17 @@ export async function getSelectionData(): Promise<SelectionData> {
         }
         if (nextRow <= 1048576) {
           const overflowRowEnd = Math.min(nextRow + bufferSize - 1, 1048576);
+          const labelColNum = Math.max(1, startColNum - 1);
+          const bufStartCol = labelColNum < startColNum ? numToCol(labelColNum) : startCol;
           const rowBufferRange = worksheet.getRange(
-            `${startCol}${nextRow}:${endCol}${overflowRowEnd}`
+            `${bufStartCol}${nextRow}:${endCol}${overflowRowEnd}`
           );
           rowBufferRange.load("values");
           await ctx.sync();
           const bufVals = rowBufferRange.values;
+          const bufStartColNum = colToNum(bufStartCol);
           for (let c = 0; c < (bufVals[0]?.length ?? 0); c++) {
-            const colLetter = numToCol(startColNum + c);
+            const colLetter = numToCol(bufStartColNum + c);
             let cnt = 0;
             for (let r = 0; r < bufVals.length; r++) {
               if (bufVals[r][c] !== null && bufVals[r][c] !== undefined && bufVals[r][c] !== "") cnt++;

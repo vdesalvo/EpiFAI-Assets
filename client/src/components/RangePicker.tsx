@@ -251,10 +251,13 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
       };
     }
 
+    const selStartColNum = colToNum(selectionData.startCol);
     const selEndColNum = colToNum(selectionData.endCol);
     const selEndRow = selectionData.endRow;
     const colOverflowByRow = selectionData.colOverflowByRow ?? {};
     const rowOverflowByCol = selectionData.rowOverflowByCol ?? {};
+    const labelColNum = Math.max(1, selStartColNum - 1);
+    const labelCol = numToCol(labelColNum);
     const bufferColStart = selEndColNum + 1;
     const bufferRowStart = selEndRow + 1;
     const bufferColEnd = Math.min(bufferColStart + 500, 16384);
@@ -285,12 +288,25 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
           let height: string;
           if (useExpandHeight) {
             const nextRow = bufferRowStart;
-            const extraRange = `${sp}$${c1}$${nextRow}:$${c1}$${bufferRowEnd}`;
-            const rowBaseline = rowOverflowByCol[c1] ?? 0;
-            if (rowBaseline > 0) {
-              height = `${rgHeight}+MAX(0,COUNTA(${extraRange})-${rowBaseline})`;
+            const useLabelCol = labelColNum < selStartColNum;
+            if (useLabelCol) {
+              const labelRange = `${sp}$${labelCol}$${nextRow}:$${labelCol}$${bufferRowEnd}`;
+              const dataRange = `${sp}$${c1}$${nextRow}:$${c1}$${bufferRowEnd}`;
+              const labelBaseline = rowOverflowByCol[labelCol] ?? 0;
+              const dataBaseline = rowOverflowByCol[c1] ?? 0;
+              if (labelBaseline > 0 || dataBaseline > 0) {
+                height = `${rgHeight}+MAX(0,COUNTA(${labelRange})-${labelBaseline},COUNTA(${dataRange})-${dataBaseline})`;
+              } else {
+                height = `${rgHeight}+MAX(COUNTA(${labelRange}),COUNTA(${dataRange}))`;
+              }
             } else {
-              height = `${rgHeight}+COUNTA(${extraRange})`;
+              const extraRange = `${sp}$${c1}$${nextRow}:$${c1}$${bufferRowEnd}`;
+              const rowBaseline = rowOverflowByCol[c1] ?? 0;
+              if (rowBaseline > 0) {
+                height = `${rgHeight}+MAX(0,COUNTA(${extraRange})-${rowBaseline})`;
+              } else {
+                height = `${rgHeight}+COUNTA(${extraRange})`;
+              }
             }
           } else {
             height = String(rgHeight);
