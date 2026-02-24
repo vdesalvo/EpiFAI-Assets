@@ -81,13 +81,19 @@ export function useCharts() {
   return useQuery({
     queryKey: ["excel-charts"],
     queryFn: async () => {
-      const data = await chartsSvc.getAllCharts();
-      return data.map(c => ({
-        ...c,
-        isDefault: chartsSvc.isDefaultName(c.name)
-      }));
+      try {
+        const data = await chartsSvc.getAllCharts();
+        return data.map(c => ({
+          ...c,
+          isDefault: chartsSvc.isDefaultName(c.name)
+        }));
+      } catch (err) {
+        console.error("useCharts queryFn error:", err);
+        return [];
+      }
     },
     refetchOnWindowFocus: false,
+    retry: 1,
   });
 }
 

@@ -13,24 +13,36 @@ export async function getAllCharts(): Promise<ExcelChart[]> {
   try {
     return await Excel.run(async (ctx) => {
       const sheets = ctx.workbook.worksheets;
-      sheets.load("items/name,items/charts");
+      sheets.load("items/name");
       await ctx.sync();
       const charts: ExcelChart[] = [];
       for (const sheet of sheets.items) {
-        sheet.charts.load("items/name,items/id,items/title/text");
-        await ctx.sync();
-        for (const chart of sheet.charts.items) {
-          charts.push({
-            id: chart.id, 
-            name: chart.name, 
-            title: chart.title?.text || "(No Title)", 
-            sheet: sheet.name
-          });
+        try {
+          const chartsCol = sheet.charts;
+          chartsCol.load("items/name,items/id");
+          await ctx.sync();
+          for (const chart of chartsCol.items) {
+            let titleText = "(No Title)";
+            try {
+              chart.load("title/text");
+              await ctx.sync();
+              titleText = chart.title?.text || "(No Title)";
+            } catch { /* title not available */ }
+            charts.push({
+              id: chart.id,
+              name: chart.name,
+              title: titleText,
+              sheet: sheet.name
+            });
+          }
+        } catch (sheetErr) {
+          console.warn(`Could not load charts for sheet "${sheet.name}":`, sheetErr);
         }
       }
       return charts;
     });
   } catch (error) {
+    console.error("getAllCharts error:", error);
     if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
       return [
         { id: "c1", name: "Chart 1", title: "Sales 2024", sheet: "Sheet1" },
