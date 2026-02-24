@@ -25,6 +25,8 @@ interface RangePickerProps {
     expandCols?: boolean;
     skippedColIndices?: number[];
     skippedRowIndices?: number[];
+    colOverflowByRow?: Record<number, number>;
+    rowOverflowByCol?: Record<string, number>;
   }) => void;
   onCancel: () => void;
   onPickSelection: () => Promise<SelectionData | undefined>;
@@ -84,6 +86,12 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
         setLoading(true);
         try {
           const data = await readRangeData(editTarget.origRange);
+          if (editTarget.colOverflowByRow && Object.keys(editTarget.colOverflowByRow).length > 0) {
+            data.colOverflowByRow = editTarget.colOverflowByRow;
+          }
+          if (editTarget.rowOverflowByCol && Object.keys(editTarget.rowOverflowByCol).length > 0) {
+            data.rowOverflowByCol = editTarget.rowOverflowByCol;
+          }
           setSelectionData(data);
           if (editTarget.skippedColIndices?.length) {
             setSkippedCols(new Set(editTarget.skippedColIndices));
@@ -341,6 +349,8 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
       expandCols,
       skippedColIndices: Array.from(skippedCols).sort((a, b) => a - b),
       skippedRowIndices: Array.from(skippedRows).sort((a, b) => a - b),
+      colOverflowByRow: selectionData?.colOverflowByRow ?? {},
+      rowOverflowByCol: selectionData?.rowOverflowByCol ?? {},
     });
   };
 

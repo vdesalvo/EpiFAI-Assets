@@ -11,6 +11,8 @@ const EXPANDROWS_TAG = "[expandrows]";
 const EXPANDCOLS_TAG = "[expandcols]";
 const SKIPCIDX_TAG_RE = /\[skipcidx:([^\]]+)\]/;
 const SKIPRIDX_TAG_RE = /\[skipridx:([^\]]+)\]/;
+const COLOVERFLOW_TAG_RE = /\[coloverflow:([^\]]+)\]/;
+const ROWOVERFLOW_TAG_RE = /\[rowoverflow:([^\]]+)\]/;
 
 export function parseSkipTag(comment: string): { skipRows: number; skipCols: number } {
   const m = comment.match(SKIP_TAG_RE);
@@ -91,6 +93,33 @@ export function buildSkipRowIndicesTag(indices: number[]): string {
   return `[skipridx:${indices.join(",")}]`;
 }
 
+export function parseColOverflowTag(comment: string): Record<number, number> {
+  const m = comment.match(COLOVERFLOW_TAG_RE);
+  if (!m) return {};
+  try {
+    const raw = JSON.parse(m[1]);
+    const result: Record<number, number> = {};
+    for (const k in raw) result[Number(k)] = raw[k];
+    return result;
+  } catch { return {}; }
+}
+
+export function parseRowOverflowTag(comment: string): Record<string, number> {
+  const m = comment.match(ROWOVERFLOW_TAG_RE);
+  if (!m) return {};
+  try { return JSON.parse(m[1]); } catch { return {}; }
+}
+
+export function buildColOverflowTag(overflow: Record<number, number>): string {
+  if (!overflow || Object.keys(overflow).length === 0) return "";
+  return `[coloverflow:${JSON.stringify(overflow)}]`;
+}
+
+export function buildRowOverflowTag(overflow: Record<string, number>): string {
+  if (!overflow || Object.keys(overflow).length === 0) return "";
+  return `[rowoverflow:${JSON.stringify(overflow)}]`;
+}
+
 export function stripMetaTags(comment: string): string {
   return comment
     .replace(EPIFAI_TAG, "")
@@ -104,6 +133,8 @@ export function stripMetaTags(comment: string): string {
     .replace(EXPANDCOLS_TAG, "")
     .replace(SKIPCIDX_TAG_RE, "")
     .replace(SKIPRIDX_TAG_RE, "")
+    .replace(COLOVERFLOW_TAG_RE, "")
+    .replace(ROWOVERFLOW_TAG_RE, "")
     .trim();
 }
 
@@ -130,6 +161,8 @@ export interface ExcelName {
   expandCols: boolean;
   skippedColIndices: number[];
   skippedRowIndices: number[];
+  colOverflowByRow: Record<number, number>;
+  rowOverflowByCol: Record<string, number>;
 }
 
 export interface UpdateNameParams {
@@ -147,6 +180,8 @@ export interface UpdateNameParams {
   expandCols?: boolean;
   skippedColIndices?: number[];
   skippedRowIndices?: number[];
+  colOverflowByRow?: Record<number, number>;
+  rowOverflowByCol?: Record<string, number>;
 }
 
 export interface SelectionData {
@@ -217,6 +252,8 @@ function buildExcelName(item: any, scope: string, address: string, values?: any[
     expandCols: parseExpandColsTag(rawComment),
     skippedColIndices: parseSkipColIndicesTag(rawComment),
     skippedRowIndices: parseSkipRowIndicesTag(rawComment),
+    colOverflowByRow: parseColOverflowTag(rawComment),
+    rowOverflowByCol: parseRowOverflowTag(rawComment),
   };
 }
 
@@ -333,9 +370,9 @@ export async function getAllNames(): Promise<ExcelName[]> {
     if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
        console.warn("Mocking Excel Data for Development");
        return [
-         { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid", origin: "epifai" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false, origRange: "", expandRows: false, expandCols: false, skippedColIndices: [], skippedRowIndices: [] },
-         { name: "Expenses_Q1", type: "Range", value: 500, formula: "=Sheet1!$B$2", comment: "", visible: true, scope: "Workbook", address: "Sheet1!$B$2", status: "valid", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false, origRange: "", expandRows: false, expandCols: false, skippedColIndices: [], skippedRowIndices: [] },
-         { name: "Broken_Ref", type: "Range", value: "#REF!", formula: "=Sheet1!$Z$99", comment: "Old ref", visible: true, scope: "Workbook", address: "", status: "broken", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false, origRange: "", expandRows: false, expandCols: false, skippedColIndices: [], skippedRowIndices: [] }
+         { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid", origin: "epifai" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false, origRange: "", expandRows: false, expandCols: false, skippedColIndices: [], skippedRowIndices: [], colOverflowByRow: {}, rowOverflowByCol: {} },
+         { name: "Expenses_Q1", type: "Range", value: 500, formula: "=Sheet1!$B$2", comment: "", visible: true, scope: "Workbook", address: "Sheet1!$B$2", status: "valid", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false, origRange: "", expandRows: false, expandCols: false, skippedColIndices: [], skippedRowIndices: [], colOverflowByRow: {}, rowOverflowByCol: {} },
+         { name: "Broken_Ref", type: "Range", value: "#REF!", formula: "=Sheet1!$Z$99", comment: "Old ref", visible: true, scope: "Workbook", address: "", status: "broken", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false, origRange: "", expandRows: false, expandCols: false, skippedColIndices: [], skippedRowIndices: [], colOverflowByRow: {}, rowOverflowByCol: {} }
        ];
     }
     throw error;
@@ -357,7 +394,7 @@ export async function claimAsEpifai(name: string, scope: string): Promise<void> 
   });
 }
 
-export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedRef = "", dynamicRef = "", lastColOnly = false, lastRowOnly = false, origRange = "", expandRows = false, expandCols = false, skippedColIndices: number[] = [], skippedRowIndices: number[] = []): Promise<void> {
+export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedRef = "", dynamicRef = "", lastColOnly = false, lastRowOnly = false, origRange = "", expandRows = false, expandCols = false, skippedColIndices: number[] = [], skippedRowIndices: number[] = [], colOverflowByRow: Record<number, number> = {}, rowOverflowByCol: Record<string, number> = {}): Promise<void> {
   return Excel.run(async (ctx) => {
     const raw = formula.replace(/^=/, "");
     const hasFunction = /[A-Z]+\(/.test(raw.toUpperCase());
@@ -399,7 +436,9 @@ export async function addName(name: string, formula: string, comment = "", scope
     const expandColsTag = buildExpandColsTag(expandCols);
     const skipCIdxTag = buildSkipColIndicesTag(skippedColIndices);
     const skipRIdxTag = buildSkipRowIndicesTag(skippedRowIndices);
-    const parts = [comment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag, EPIFAI_TAG].filter(Boolean);
+    const colOverflowTag = buildColOverflowTag(colOverflowByRow);
+    const rowOverflowTag = buildRowOverflowTag(rowOverflowByCol);
+    const parts = [comment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag, colOverflowTag, rowOverflowTag, EPIFAI_TAG].filter(Boolean);
     item.comment = parts.join(" ");
     await ctx.sync();
   });
@@ -428,6 +467,8 @@ export async function updateName(name: string, updates: UpdateNameParams): Promi
     const expC = updates.expandCols !== undefined ? updates.expandCols : parseExpandColsTag(oldRaw);
     const scIdx = updates.skippedColIndices !== undefined ? updates.skippedColIndices : parseSkipColIndicesTag(oldRaw);
     const srIdx = updates.skippedRowIndices !== undefined ? updates.skippedRowIndices : parseSkipRowIndicesTag(oldRaw);
+    const colOvf = updates.colOverflowByRow !== undefined ? updates.colOverflowByRow : parseColOverflowTag(oldRaw);
+    const rowOvf = updates.rowOverflowByCol !== undefined ? updates.rowOverflowByCol : parseRowOverflowTag(oldRaw);
     const skipTag = buildSkipTag(skipR, skipC);
     const fixRefTag = buildFixedRefTag(fRef);
     const dynRefTag = buildDynamicRefTag(dRef);
@@ -438,7 +479,9 @@ export async function updateName(name: string, updates: UpdateNameParams): Promi
     const expandColsTag = buildExpandColsTag(expC);
     const skipCIdxTag = buildSkipColIndicesTag(scIdx);
     const skipRIdxTag = buildSkipRowIndicesTag(srIdx);
-    const parts = [userComment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag, hadEpifaiTag ? EPIFAI_TAG : ""].filter(Boolean);
+    const colOverflowTag = buildColOverflowTag(colOvf);
+    const rowOverflowTag = buildRowOverflowTag(rowOvf);
+    const parts = [userComment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag, colOverflowTag, rowOverflowTag, hadEpifaiTag ? EPIFAI_TAG : ""].filter(Boolean);
     item.comment = parts.join(" ");
     
     if (updates.newName && updates.newName !== item.name) {
