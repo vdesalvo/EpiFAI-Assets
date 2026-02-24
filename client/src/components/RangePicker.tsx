@@ -258,8 +258,12 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
     const rowOverflowByCol = selectionData.rowOverflowByCol ?? {};
     const labelColNum = Math.max(1, selStartColNum - 1);
     const labelCol = numToCol(labelColNum);
-    const bufferColStart = selEndColNum + 1;
-    const bufferRowStart = selEndRow + 1;
+    const lastColGroup = colGroups[colGroups.length - 1];
+    const lastActiveCol = colToNum(lastColGroup[lastColGroup.length - 1]);
+    const lastRowGroup = rowGroups[rowGroups.length - 1];
+    const lastActiveRow = lastRowGroup[lastRowGroup.length - 1];
+    const bufferColStart = lastActiveCol + 1;
+    const bufferRowStart = lastActiveRow + 1;
     const bufferColEnd = Math.min(bufferColStart + 500, 16384);
     const bufferRowEnd = Math.min(bufferRowStart + 500, 1048576);
     const hasColGaps = colGroups.length > 1;
