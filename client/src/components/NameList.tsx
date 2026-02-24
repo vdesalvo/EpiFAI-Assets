@@ -59,7 +59,7 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onClaim, o
       );
     }
     return true;
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
   const getStatusBadge = (status: string) => {
     switch (status) {
