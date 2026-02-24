@@ -107,7 +107,7 @@ export default function Home() {
   
   // Data Hooks
   const { data: names = [], isLoading: loadingNames, refetch: refetchNames, error: namesError } = useNames();
-  const { data: charts = [], isLoading: loadingCharts, refetch: refetchCharts } = useCharts();
+  const { data: charts = [], isLoading: loadingCharts, refetch: refetchCharts, error: chartsError } = useCharts();
   
   // Mutations
   const addName = useAddName();
@@ -344,10 +344,17 @@ export default function Home() {
           </TabsContent>
 
           <TabsContent value="charts" className="flex-1 min-h-0 m-0 overflow-y-auto">
-             {charts.length === 0 ? (
+             {chartsError ? (
                <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm p-8 text-center">
                  <BarChart3 className="w-12 h-12 mb-3 opacity-20" />
-                 <p>No charts found in this workbook.</p>
+                 <p>Could not load charts.</p>
+                 <p className="text-[10px] mt-2 text-destructive/70 max-w-[260px] break-all">{(chartsError as Error).message || String(chartsError)}</p>
+                 <Button size="sm" variant="outline" className="mt-3" onClick={() => refetchCharts()}>Retry</Button>
+               </div>
+             ) : charts.length === 0 ? (
+               <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm p-8 text-center">
+                 <BarChart3 className="w-12 h-12 mb-3 opacity-20" />
+                 <p>{loadingCharts ? "Loading charts..." : "No charts found in this workbook."}</p>
                </div>
              ) : (
                <div className="divide-y">

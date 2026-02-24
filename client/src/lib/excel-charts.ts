@@ -10,67 +10,46 @@ export interface ExcelChart {
 }
 
 export async function getAllCharts(): Promise<ExcelChart[]> {
-  try {
-    return await Excel.run(async (ctx) => {
-      const sheets = ctx.workbook.worksheets;
-      sheets.load("items/name");
-      await ctx.sync();
-
-      const results: ExcelChart[] = [];
-
-      for (const sheet of sheets.items) {
-        try {
-          const chartsCol = sheet.charts;
-          chartsCol.load("count");
-          await ctx.sync();
-
-          if (chartsCol.count === 0) continue;
-
-          chartsCol.load("items");
-          await ctx.sync();
-
-          for (const chart of chartsCol.items) {
-            try {
-              chart.load("id,name");
-              await ctx.sync();
-            } catch {
-              continue;
-            }
-
-            let titleText = "(No Title)";
-            try {
-              const titleObj = chart.title;
-              titleObj.load("text");
-              await ctx.sync();
-              titleText = titleObj.text || "(No Title)";
-            } catch {
-              // title not available or not set
-            }
-
-            results.push({
-              id: chart.id,
-              name: chart.name,
-              title: titleText,
-              sheet: sheet.name,
-            });
-          }
-        } catch (sheetErr) {
-          console.warn(`Could not load charts for sheet "${sheet.name}":`, sheetErr);
-        }
-      }
-
-      return results;
-    });
-  } catch (error) {
-    console.error("getAllCharts error:", error);
-    if (!window.hasOwnProperty("Excel")) {
-      return [
-        { id: "c1", name: "Chart 1", title: "Sales 2024", sheet: "Sheet1" },
-        { id: "c2", name: "Chart 2", title: "Growth", sheet: "Sheet1" },
-      ];
-    }
-    return [];
+  if (typeof Excel === "undefined" || !window.hasOwnProperty("Excel")) {
+    return [
+      { id: "c1", name: "Chart 1", title: "Sales 2024", sheet: "Sheet1" },
+      { id: "c2", name: "Chart 2", title: "Growth", sheet: "Sheet1" },
+    ];
   }
+
+  return await Excel.run(async (ctx) => {
+    const sheets = ctx.workbook.worksheets;
+    sheets.load("items/name,items/charts/items/name,items/charts/items/id");
+    await ctx.sync();
+
+    const results: ExcelChart[] = [];
+
+    for (const sheet of sheets.items) {
+      for (const chart of sheet.charts.items) {
+        let titleText = "(No Title)";
+        try {
+          chart.load("title");
+          await ctx.sync();
+          if (chart.title) {
+            chart.title.load("text");
+            await ctx.sync();
+            titleText = chart.title.text || "(No Title)";
+          }
+        } catch {
+          // title not accessible
+        }
+
+        results.push({
+          id: chart.id,
+          name: chart.name,
+          title: titleText,
+          sheet: sheet.name,
+        });
+      }
+    }
+
+    return results;
+  });
 }
 
 export async function renameChart(sheetName: string, oldName: string, newName: string): Promise<void> {
