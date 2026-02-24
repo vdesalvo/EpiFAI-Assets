@@ -266,8 +266,6 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
     const bufferRowStart = selEndRow + 1;
     const bufferColEnd = Math.min(bufferColStart + 500, 16384);
     const bufferRowEnd = Math.min(bufferRowStart + 500, 1048576);
-    const trailingDimmedRows = selEndRow - lastActiveRow;
-    const trailingDimmedCols = selEndColNum - lastActiveCol;
     const hasColGaps = colGroups.length > 1;
     const hasRowGaps = rowGroups.length > 1;
 
@@ -306,9 +304,9 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
             } else {
               expansionExpr = contiguous(c1);
             }
-            const gap = isLastRowGroup ? trailingDimmedRows : 0;
-            if (gap > 0) {
-              height = `${rgHeight}+IF(${expansionExpr}>0,${gap}+${expansionExpr},0)`;
+            const rowGap = isLastRowGroup ? Math.max(0, bufferRowStart - (r1 + rgHeight)) : 0;
+            if (rowGap > 0) {
+              height = `${rgHeight}+IF(${expansionExpr}>0,${rowGap}+${expansionExpr},0)`;
             } else {
               height = `${rgHeight}+${expansionExpr}`;
             }
@@ -327,7 +325,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
             } else {
               colExpansionExpr = `COUNTA(${extraRange})`;
             }
-            const colGap = isLastColGroup ? trailingDimmedCols : 0;
+            const colGap = isLastColGroup ? Math.max(0, bufferColStart - (colToNum(c1) + cgWidth)) : 0;
             if (colGap > 0) {
               width = `${cgWidth}+IF(${colExpansionExpr}>0,${colGap}+${colExpansionExpr},0)`;
             } else {
