@@ -19,35 +19,39 @@ export async function getAllCharts(): Promise<ExcelChart[]> {
 
   return await Excel.run(async (ctx) => {
     const sheets = ctx.workbook.worksheets;
-    sheets.load("items/name");
+    sheets.load("items");
     await ctx.sync();
 
     const results: ExcelChart[] = [];
 
     for (const sheet of sheets.items) {
-      sheet.charts.load("items/name,items/id");
-      await ctx.sync();
+      try {
+        const charts = sheet.charts;
+        charts.load("items");
+        await ctx.sync();
 
-      for (const chart of sheet.charts.items) {
-        let titleText = "(No Title)";
-        try {
-          chart.load("title");
+        for (const chart of charts.items) {
+          chart.load("id,name");
           await ctx.sync();
-          if (chart.title) {
+
+          let titleText = "(No Title)";
+          try {
             chart.title.load("text");
             await ctx.sync();
             titleText = chart.title.text || "(No Title)";
+          } catch {
+            // title not accessible
           }
-        } catch {
-          // title not accessible
-        }
 
-        results.push({
-          id: chart.id,
-          name: chart.name,
-          title: titleText,
-          sheet: sheet.name,
-        });
+          results.push({
+            id: chart.id,
+            name: chart.name,
+            title: titleText,
+            sheet: sheet.name,
+          });
+        }
+      } catch (e) {
+        console.warn(`Could not load charts for sheet "${sheet.name}":`, e);
       }
     }
 
