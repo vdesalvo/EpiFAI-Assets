@@ -55,6 +55,7 @@ declare namespace Excel {
     top: number;
     left: number;
     geometricShapeType: string;
+    select(): void;
     load(propertyNames?: string | string[]): void;
   }
 

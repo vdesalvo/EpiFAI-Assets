@@ -108,16 +108,9 @@ export async function goToImage(sheetName: string, shapeName: string): Promise<v
   return Excel.run(async (ctx) => {
     const sheet = ctx.workbook.worksheets.getItem(sheetName);
     sheet.activate();
-    try {
-      const shape = sheet.shapes.getItem(shapeName);
-      shape.load("top,left");
-      await ctx.sync();
-      const range = sheet.getRangeByIndexes(0, 0, 1, 1);
-      range.select();
-      await ctx.sync();
-    } catch {
-      await ctx.sync();
-    }
+    const shape = sheet.shapes.getItem(shapeName);
+    shape.select();
+    await ctx.sync();
   });
 }
 
