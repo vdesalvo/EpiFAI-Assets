@@ -11,8 +11,6 @@ const EXPANDROWS_TAG = "[expandrows]";
 const EXPANDCOLS_TAG = "[expandcols]";
 const SKIPCIDX_TAG_RE = /\[skipcidx:([^\]]+)\]/;
 const SKIPRIDX_TAG_RE = /\[skipridx:([^\]]+)\]/;
-const COLOVERFLOW_TAG_RE = /\[coloverflow:([^\]]+)\]/;
-const ROWOVERFLOW_TAG_RE = /\[rowoverflow:([^\]]+)\]/;
 
 export function parseSkipTag(comment: string): { skipRows: number; skipCols: number } {
   const m = comment.match(SKIP_TAG_RE);
@@ -93,70 +91,6 @@ export function buildSkipRowIndicesTag(indices: number[]): string {
   return `[skipridx:${indices.join(",")}]`;
 }
 
-function encodeOverflow(entries: [string, number][]): string {
-  if (entries.length === 0) return "";
-  const vals = entries.map(([, v]) => v);
-  const allSame = vals.every(v => v === vals[0]);
-  if (allSame) {
-    const keys = entries.map(([k]) => k);
-    return `${keys.join(",")}=${vals[0]}`;
-  }
-  return entries.map(([k, v]) => `${k}:${v}`).join(",");
-}
-
-function decodeOverflow(s: string): [string, number][] {
-  if (!s) return [];
-  const eqIdx = s.lastIndexOf("=");
-  if (eqIdx > 0 && !s.substring(0, eqIdx).includes(":")) {
-    const keys = s.substring(0, eqIdx).split(",");
-    const val = parseInt(s.substring(eqIdx + 1), 10);
-    return keys.map(k => [k, val]);
-  }
-  return s.split(",").map(p => {
-    const [k, v] = p.split(":");
-    return [k, parseInt(v, 10)];
-  });
-}
-
-export function parseColOverflowTag(comment: string): Record<number, number> {
-  const m = comment.match(COLOVERFLOW_TAG_RE);
-  if (!m) return {};
-  try {
-    if (m[1].startsWith("{")) {
-      const raw = JSON.parse(m[1]);
-      const result: Record<number, number> = {};
-      for (const k in raw) result[Number(k)] = raw[k];
-      return result;
-    }
-    const result: Record<number, number> = {};
-    for (const [k, v] of decodeOverflow(m[1])) result[Number(k)] = v;
-    return result;
-  } catch { return {}; }
-}
-
-export function parseRowOverflowTag(comment: string): Record<string, number> {
-  const m = comment.match(ROWOVERFLOW_TAG_RE);
-  if (!m) return {};
-  try {
-    if (m[1].startsWith("{")) return JSON.parse(m[1]);
-    const result: Record<string, number> = {};
-    for (const [k, v] of decodeOverflow(m[1])) result[k] = v;
-    return result;
-  } catch { return {}; }
-}
-
-export function buildColOverflowTag(overflow: Record<number, number>): string {
-  if (!overflow || Object.keys(overflow).length === 0) return "";
-  const entries: [string, number][] = Object.entries(overflow).map(([k, v]) => [k, v]);
-  return `[coloverflow:${encodeOverflow(entries)}]`;
-}
-
-export function buildRowOverflowTag(overflow: Record<string, number>): string {
-  if (!overflow || Object.keys(overflow).length === 0) return "";
-  const entries: [string, number][] = Object.entries(overflow);
-  return `[rowoverflow:${encodeOverflow(entries)}]`;
-}
-
 export function stripMetaTags(comment: string): string {
   return comment
     .replace(EPIFAI_TAG, "")
@@ -170,8 +104,6 @@ export function stripMetaTags(comment: string): string {
     .replace(EXPANDCOLS_TAG, "")
     .replace(SKIPCIDX_TAG_RE, "")
     .replace(SKIPRIDX_TAG_RE, "")
-    .replace(COLOVERFLOW_TAG_RE, "")
-    .replace(ROWOVERFLOW_TAG_RE, "")
     .trim();
 }
 
@@ -198,8 +130,6 @@ export interface ExcelName {
   expandCols: boolean;
   skippedColIndices: number[];
   skippedRowIndices: number[];
-  colOverflowByRow: Record<number, number>;
-  rowOverflowByCol: Record<string, number>;
 }
 
 export interface UpdateNameParams {
@@ -217,8 +147,6 @@ export interface UpdateNameParams {
   expandCols?: boolean;
   skippedColIndices?: number[];
   skippedRowIndices?: number[];
-  colOverflowByRow?: Record<number, number>;
-  rowOverflowByCol?: Record<string, number>;
 }
 
 export interface SelectionData {
@@ -232,8 +160,6 @@ export interface SelectionData {
   colCount: number;      // Number of columns
   rowCount: number;      // Number of rows
   columns: string[];     // Array of column letters ["A","B","C",...]
-  colOverflowByRow?: Record<number, number>;  // Per-row count of non-empty cells in columns beyond selection end
-  rowOverflowByCol?: Record<string, number>;  // Per-col count of non-empty cells in rows beyond selection end
 }
 
 function isDynamicFormula(formula: string): boolean {
@@ -289,8 +215,6 @@ function buildExcelName(item: any, scope: string, address: string, values?: any[
     expandCols: parseExpandColsTag(rawComment),
     skippedColIndices: parseSkipColIndicesTag(rawComment),
     skippedRowIndices: parseSkipRowIndicesTag(rawComment),
-    colOverflowByRow: parseColOverflowTag(rawComment),
-    rowOverflowByCol: parseRowOverflowTag(rawComment),
   };
 }
 
@@ -407,9 +331,9 @@ export async function getAllNames(): Promise<ExcelName[]> {
     if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
        console.warn("Mocking Excel Data for Development");
        return [
-         { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid", origin: "epifai" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false, origRange: "", expandRows: false, expandCols: false, skippedColIndices: [], skippedRowIndices: [], colOverflowByRow: {}, rowOverflowByCol: {} },
-         { name: "Expenses_Q1", type: "Range", value: 500, formula: "=Sheet1!$B$2", comment: "", visible: true, scope: "Workbook", address: "Sheet1!$B$2", status: "valid", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false, origRange: "", expandRows: false, expandCols: false, skippedColIndices: [], skippedRowIndices: [], colOverflowByRow: {}, rowOverflowByCol: {} },
-         { name: "Broken_Ref", type: "Range", value: "#REF!", formula: "=Sheet1!$Z$99", comment: "Old ref", visible: true, scope: "Workbook", address: "", status: "broken", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false, origRange: "", expandRows: false, expandCols: false, skippedColIndices: [], skippedRowIndices: [], colOverflowByRow: {}, rowOverflowByCol: {} }
+         { name: "Revenue_2024", type: "Range", value: 1000, formula: "=Sheet1!$A$1", comment: "Total Revenue", visible: true, scope: "Workbook", address: "Sheet1!$A$1", status: "valid", origin: "epifai" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false, origRange: "", expandRows: false, expandCols: false, skippedColIndices: [], skippedRowIndices: [] },
+         { name: "Expenses_Q1", type: "Range", value: 500, formula: "=Sheet1!$B$2", comment: "", visible: true, scope: "Workbook", address: "Sheet1!$B$2", status: "valid", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false, origRange: "", expandRows: false, expandCols: false, skippedColIndices: [], skippedRowIndices: [] },
+         { name: "Broken_Ref", type: "Range", value: "#REF!", formula: "=Sheet1!$Z$99", comment: "Old ref", visible: true, scope: "Workbook", address: "", status: "broken", origin: "excel" as const, skipRows: 0, skipCols: 0, fixedRef: "", dynamicRef: "", lastColOnly: false, lastRowOnly: false, origRange: "", expandRows: false, expandCols: false, skippedColIndices: [], skippedRowIndices: [] }
        ];
     }
     throw error;
@@ -431,7 +355,7 @@ export async function claimAsEpifai(name: string, scope: string): Promise<void> 
   });
 }
 
-export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedRef = "", dynamicRef = "", lastColOnly = false, lastRowOnly = false, origRange = "", expandRows = false, expandCols = false, skippedColIndices: number[] = [], skippedRowIndices: number[] = [], colOverflowByRow: Record<number, number> = {}, rowOverflowByCol: Record<string, number> = {}): Promise<void> {
+export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedRef = "", dynamicRef = "", lastColOnly = false, lastRowOnly = false, origRange = "", expandRows = false, expandCols = false, skippedColIndices: number[] = [], skippedRowIndices: number[] = []): Promise<void> {
   return Excel.run(async (ctx) => {
     const raw = formula.replace(/^=/, "");
     const hasFunction = /[A-Z]+\(/.test(raw.toUpperCase());
@@ -473,9 +397,7 @@ export async function addName(name: string, formula: string, comment = "", scope
     const expandColsTag = buildExpandColsTag(expandCols);
     const skipCIdxTag = buildSkipColIndicesTag(skippedColIndices);
     const skipRIdxTag = buildSkipRowIndicesTag(skippedRowIndices);
-    const colOverflowTag = buildColOverflowTag(colOverflowByRow);
-    const rowOverflowTag = buildRowOverflowTag(rowOverflowByCol);
-    const parts = [EPIFAI_TAG, comment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag, colOverflowTag, rowOverflowTag].filter(Boolean);
+    const parts = [EPIFAI_TAG, comment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag].filter(Boolean);
     item.comment = parts.join(" ");
     await ctx.sync();
   });
@@ -504,8 +426,6 @@ export async function updateName(name: string, updates: UpdateNameParams): Promi
     const expC = updates.expandCols !== undefined ? updates.expandCols : parseExpandColsTag(oldRaw);
     const scIdx = updates.skippedColIndices !== undefined ? updates.skippedColIndices : parseSkipColIndicesTag(oldRaw);
     const srIdx = updates.skippedRowIndices !== undefined ? updates.skippedRowIndices : parseSkipRowIndicesTag(oldRaw);
-    const colOvf = updates.colOverflowByRow !== undefined ? updates.colOverflowByRow : parseColOverflowTag(oldRaw);
-    const rowOvf = updates.rowOverflowByCol !== undefined ? updates.rowOverflowByCol : parseRowOverflowTag(oldRaw);
     const skipTag = buildSkipTag(skipR, skipC);
     const fixRefTag = buildFixedRefTag(fRef);
     const dynRefTag = buildDynamicRefTag(dRef);
@@ -516,9 +436,7 @@ export async function updateName(name: string, updates: UpdateNameParams): Promi
     const expandColsTag = buildExpandColsTag(expC);
     const skipCIdxTag = buildSkipColIndicesTag(scIdx);
     const skipRIdxTag = buildSkipRowIndicesTag(srIdx);
-    const colOverflowTag = buildColOverflowTag(colOvf);
-    const rowOverflowTag = buildRowOverflowTag(rowOvf);
-    const parts = [hadEpifaiTag ? EPIFAI_TAG : "", userComment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag, colOverflowTag, rowOverflowTag].filter(Boolean);
+    const parts = [hadEpifaiTag ? EPIFAI_TAG : "", userComment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag].filter(Boolean);
     item.comment = parts.join(" ");
     
     if (updates.newName && updates.newName !== item.name) {
@@ -933,49 +851,7 @@ export async function readRangeData(rangeAddress: string): Promise<SelectionData
         columns.push(numToCol(i));
       }
 
-      const colOverflowByRow: Record<number, number> = {};
-      const rowOverflowByCol: Record<string, number> = {};
-      try {
-        const bufferSize = 500;
-        const nextColNum = endColNum + 1;
-        const nextRow = endRow + 1;
-        if (nextColNum <= 16384) {
-          const overflowColEnd = Math.min(nextColNum + bufferSize - 1, 16384);
-          const colBufferRange = ws.getRange(
-            `${numToCol(nextColNum)}${startRow}:${numToCol(overflowColEnd)}${endRow}`
-          );
-          colBufferRange.load("values");
-          await ctx.sync();
-          const bufVals = colBufferRange.values;
-          for (let r = 0; r < bufVals.length; r++) {
-            const rowNum = startRow + r;
-            const cnt = bufVals[r].filter((v: any) => v !== null && v !== undefined && v !== "").length;
-            if (cnt > 0) colOverflowByRow[rowNum] = cnt;
-          }
-        }
-        if (nextRow <= 1048576) {
-          const overflowRowEnd = Math.min(nextRow + bufferSize - 1, 1048576);
-          const labelColNum = Math.max(1, startColNum - 1);
-          const bufStartCol = labelColNum < startColNum ? numToCol(labelColNum) : startCol;
-          const rowBufferRange = ws.getRange(
-            `${bufStartCol}${nextRow}:${endCol}${overflowRowEnd}`
-          );
-          rowBufferRange.load("values");
-          await ctx.sync();
-          const bufVals = rowBufferRange.values;
-          const bufStartColNum = colToNum(bufStartCol);
-          for (let c = 0; c < (bufVals[0]?.length ?? 0); c++) {
-            const colLetter = numToCol(bufStartColNum + c);
-            let cnt = 0;
-            for (let r = 0; r < bufVals.length; r++) {
-              if (bufVals[r][c] !== null && bufVals[r][c] !== undefined && bufVals[r][c] !== "") cnt++;
-            }
-            if (cnt > 0) rowOverflowByCol[colLetter] = cnt;
-          }
-        }
-      } catch { /* overflow check failed */ }
-
-      return { address: range.address, sheet, values, startCol, endCol, startRow, endRow, colCount, rowCount, columns, colOverflowByRow, rowOverflowByCol };
+      return { address: range.address, sheet, values, startCol, endCol, startRow, endRow, colCount, rowCount, columns };
     });
   } catch (error) {
     console.error("Error reading range data:", error);
@@ -1031,48 +907,6 @@ export async function getSelectionData(): Promise<SelectionData> {
         columns.push(numToCol(i));
       }
 
-      const colOverflowByRow: Record<number, number> = {};
-      const rowOverflowByCol: Record<string, number> = {};
-      try {
-        const bufferSize = 500;
-        const nextColNum = endColNum + 1;
-        const nextRow = endRow + 1;
-        if (nextColNum <= 16384) {
-          const overflowColEnd = Math.min(nextColNum + bufferSize - 1, 16384);
-          const colBufferRange = worksheet.getRange(
-            `${numToCol(nextColNum)}${startRow}:${numToCol(overflowColEnd)}${endRow}`
-          );
-          colBufferRange.load("values");
-          await ctx.sync();
-          const bufVals = colBufferRange.values;
-          for (let r = 0; r < bufVals.length; r++) {
-            const rowNum = startRow + r;
-            const cnt = bufVals[r].filter((v: any) => v !== null && v !== undefined && v !== "").length;
-            if (cnt > 0) colOverflowByRow[rowNum] = cnt;
-          }
-        }
-        if (nextRow <= 1048576) {
-          const overflowRowEnd = Math.min(nextRow + bufferSize - 1, 1048576);
-          const labelColNum = Math.max(1, startColNum - 1);
-          const bufStartCol = labelColNum < startColNum ? numToCol(labelColNum) : startCol;
-          const rowBufferRange = worksheet.getRange(
-            `${bufStartCol}${nextRow}:${endCol}${overflowRowEnd}`
-          );
-          rowBufferRange.load("values");
-          await ctx.sync();
-          const bufVals = rowBufferRange.values;
-          const bufStartColNum = colToNum(bufStartCol);
-          for (let c = 0; c < (bufVals[0]?.length ?? 0); c++) {
-            const colLetter = numToCol(bufStartColNum + c);
-            let cnt = 0;
-            for (let r = 0; r < bufVals.length; r++) {
-              if (bufVals[r][c] !== null && bufVals[r][c] !== undefined && bufVals[r][c] !== "") cnt++;
-            }
-            if (cnt > 0) rowOverflowByCol[colLetter] = cnt;
-          }
-        }
-      } catch { /* overflow check failed, use empty */ }
-
       return {
         address,
         sheet,
@@ -1084,8 +918,6 @@ export async function getSelectionData(): Promise<SelectionData> {
         colCount,
         rowCount,
         columns,
-        colOverflowByRow,
-        rowOverflowByCol,
       };
     });
   } catch (error) {

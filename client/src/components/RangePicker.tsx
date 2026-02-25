@@ -25,8 +25,6 @@ interface RangePickerProps {
     expandCols?: boolean;
     skippedColIndices?: number[];
     skippedRowIndices?: number[];
-    colOverflowByRow?: Record<number, number>;
-    rowOverflowByCol?: Record<string, number>;
   }) => void;
   onCancel: () => void;
   onPickSelection: () => Promise<SelectionData | undefined>;
@@ -86,12 +84,6 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
         setLoading(true);
         try {
           const data = await readRangeData(editTarget.origRange);
-          if (editTarget.colOverflowByRow && Object.keys(editTarget.colOverflowByRow).length > 0) {
-            data.colOverflowByRow = editTarget.colOverflowByRow;
-          }
-          if (editTarget.rowOverflowByCol && Object.keys(editTarget.rowOverflowByCol).length > 0) {
-            data.rowOverflowByCol = editTarget.rowOverflowByCol;
-          }
           setSelectionData(data);
           if (editTarget.skippedColIndices?.length) {
             setSkippedCols(new Set(editTarget.skippedColIndices));
@@ -251,13 +243,8 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
       };
     }
 
-    const selStartColNum = colToNum(selectionData.startCol);
     const selEndColNum = colToNum(selectionData.endCol);
     const selEndRow = selectionData.endRow;
-    const lastColGroup = colGroups[colGroups.length - 1];
-    const lastActiveCol = colToNum(lastColGroup[lastColGroup.length - 1]);
-    const lastRowGroup = rowGroups[rowGroups.length - 1];
-    const lastActiveRow = lastRowGroup[lastRowGroup.length - 1];
     const bufferColStart = selEndColNum + 1;
     const bufferRowStart = selEndRow + 1;
     const bufferColEnd = Math.min(bufferColStart + 500, 16384);
@@ -359,8 +346,6 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
       expandCols,
       skippedColIndices: Array.from(skippedCols).sort((a, b) => a - b),
       skippedRowIndices: Array.from(skippedRows).sort((a, b) => a - b),
-      colOverflowByRow: selectionData?.colOverflowByRow ?? {},
-      rowOverflowByCol: selectionData?.rowOverflowByCol ?? {},
     });
   };
 
