@@ -25,6 +25,8 @@ interface RangePickerProps {
     expandCols?: boolean;
     skippedColIndices?: number[];
     skippedRowIndices?: number[];
+    createAsTable?: boolean;
+    hasHeaders?: boolean;
   }) => void;
   onCancel: () => void;
   onPickSelection: () => Promise<SelectionData | undefined>;
@@ -77,6 +79,8 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
   const [skippedCols, setSkippedCols] = useState<Set<number>>(new Set());
   const [expandCols, setExpandCols] = useState(false);
   const [expandRows, setExpandRows] = useState(false);
+  const [createAsTable, setCreateAsTable] = useState(false);
+  const [hasHeaders, setHasHeaders] = useState(true);
 
   useEffect(() => {
     if (isEditing && editTarget?.origRange) {
@@ -342,10 +346,12 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
       ...(isEditing && name !== editTarget!.name ? { newName: name } : {}),
       ...result,
       origRange: selectionData?.address || "",
-      expandRows,
-      expandCols,
+      expandRows: createAsTable ? false : expandRows,
+      expandCols: createAsTable ? false : expandCols,
       skippedColIndices: Array.from(skippedCols).sort((a, b) => a - b),
       skippedRowIndices: Array.from(skippedRows).sort((a, b) => a - b),
+      createAsTable,
+      hasHeaders,
     });
   };
 
@@ -531,39 +537,81 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
             <div className="bg-muted/30 border rounded-md p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="vp-expand-cols" className="text-[11px] text-muted-foreground">Expand Columns</Label>
-                  <p className="text-[9px] text-muted-foreground leading-snug">New columns added to the right will be included automatically</p>
+                  <Label htmlFor="vp-create-table" className="text-[11px] font-semibold text-foreground">Create as Table</Label>
+                  <p className="text-[9px] text-muted-foreground leading-snug">Use an Excel Table instead of a Named Range — rows & columns expand automatically</p>
                 </div>
                 <Switch
-                  id="vp-expand-cols"
-                  checked={expandCols}
-                  onCheckedChange={setExpandCols}
-                  data-testid="switch-vp-expand-cols"
+                  id="vp-create-table"
+                  checked={createAsTable}
+                  onCheckedChange={(v) => { setCreateAsTable(v); if (v) { setExpandRows(false); setExpandCols(false); } }}
+                  data-testid="switch-vp-create-table"
                 />
               </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="vp-expand-rows" className="text-[11px] text-muted-foreground">Expand Rows</Label>
-                  <p className="text-[9px] text-muted-foreground leading-snug">New rows added to the bottom will be included automatically</p>
+              {createAsTable ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="vp-has-headers" className="text-[11px] text-muted-foreground">First Row as Headers</Label>
+                    <p className="text-[9px] text-muted-foreground leading-snug">Use the first row of the selection as column headers</p>
+                  </div>
+                  <Switch
+                    id="vp-has-headers"
+                    checked={hasHeaders}
+                    onCheckedChange={setHasHeaders}
+                    data-testid="switch-vp-has-headers"
+                  />
                 </div>
-                <Switch
-                  id="vp-expand-rows"
-                  checked={expandRows}
-                  onCheckedChange={setExpandRows}
-                  data-testid="switch-vp-expand-rows"
-                />
-              </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="vp-expand-cols" className="text-[11px] text-muted-foreground">Expand Columns</Label>
+                      <p className="text-[9px] text-muted-foreground leading-snug">New columns added to the right will be included automatically</p>
+                    </div>
+                    <Switch
+                      id="vp-expand-cols"
+                      checked={expandCols}
+                      onCheckedChange={setExpandCols}
+                      data-testid="switch-vp-expand-cols"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="vp-expand-rows" className="text-[11px] text-muted-foreground">Expand Rows</Label>
+                      <p className="text-[9px] text-muted-foreground leading-snug">New rows added to the bottom will be included automatically</p>
+                    </div>
+                    <Switch
+                      id="vp-expand-rows"
+                      checked={expandRows}
+                      onCheckedChange={setExpandRows}
+                      data-testid="switch-vp-expand-rows"
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="bg-muted/50 border rounded-md p-2.5 space-y-1">
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Formula Preview</p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{createAsTable ? "Table Preview" : "Formula Preview"}</p>
               <div className="text-[11px] text-foreground space-y-0.5">
-                {(() => { const r = buildResult(); return r ? (
-                  <p className="font-mono text-[10px] break-all" data-testid="text-formula-preview">{r.refersTo}</p>
-                ) : null; })()}
-                <p>{activeColIndices.length} active column{activeColIndices.length !== 1 ? "s" : ""}{skippedCols.size > 0 ? ` (${skippedCols.size} skipped)` : ""}, {activeRowIndices.length} active row{activeRowIndices.length !== 1 ? "s" : ""}{skippedRows.size > 0 ? ` (${skippedRows.size} skipped)` : ""}</p>
-                {expandCols && <p className="text-emerald-600 dark:text-emerald-400">↔ Columns will auto-expand</p>}
-                {expandRows && <p className="text-emerald-600 dark:text-emerald-400">↕ Rows will auto-expand</p>}
+                {createAsTable ? (
+                  <>
+                    <p className="font-mono text-[10px] break-all" data-testid="text-formula-preview">
+                      Table: {name || "unnamed"} → {selectionData?.address || "no range"}
+                    </p>
+                    <p>{activeColIndices.length} column{activeColIndices.length !== 1 ? "s" : ""}, {activeRowIndices.length} row{activeRowIndices.length !== 1 ? "s" : ""}</p>
+                    <p className="text-emerald-600 dark:text-emerald-400">↔↕ Rows & columns expand automatically with Excel Tables</p>
+                    {hasHeaders && <p className="text-blue-600 dark:text-blue-400">First row will be used as headers</p>}
+                  </>
+                ) : (
+                  <>
+                    {(() => { const r = buildResult(); return r ? (
+                      <p className="font-mono text-[10px] break-all" data-testid="text-formula-preview">{r.refersTo}</p>
+                    ) : null; })()}
+                    <p>{activeColIndices.length} active column{activeColIndices.length !== 1 ? "s" : ""}{skippedCols.size > 0 ? ` (${skippedCols.size} skipped)` : ""}, {activeRowIndices.length} active row{activeRowIndices.length !== 1 ? "s" : ""}{skippedRows.size > 0 ? ` (${skippedRows.size} skipped)` : ""}</p>
+                    {expandCols && <p className="text-emerald-600 dark:text-emerald-400">↔ Columns will auto-expand</p>}
+                    {expandRows && <p className="text-emerald-600 dark:text-emerald-400">↕ Rows will auto-expand</p>}
+                  </>
+                )}
               </div>
             </div>
 
@@ -589,7 +637,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
           disabled={!selectionData}
           data-testid="button-vp-save"
         >
-          {isEditing ? "Update Range" : "Create Range"}
+          {isEditing ? "Update Range" : createAsTable ? "Create Table" : "Create Range"}
         </Button>
         <Button variant="outline" className="flex-1" onClick={onCancel} data-testid="button-vp-cancel">
           Cancel

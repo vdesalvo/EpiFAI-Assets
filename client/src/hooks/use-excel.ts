@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as namesSvc from "@/lib/excel-names";
 import * as chartsSvc from "@/lib/excel-charts";
+import * as tablesSvc from "@/lib/excel-tables";
 
 // === NAMES HOOKS ===
 
@@ -157,5 +158,50 @@ export function useCreateNameFromImage() {
     mutationFn: ({ sheet, shapeName }: { sheet: string; shapeName: string }) =>
       chartsSvc.createNameFromImage(sheet, shapeName),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-names"] }),
+  });
+}
+
+// === TABLES HOOKS ===
+
+export function useTables() {
+  return useQuery({
+    queryKey: ["excel-tables"],
+    queryFn: tablesSvc.getAllTables,
+    refetchOnWindowFocus: false,
+    retry: 2,
+  });
+}
+
+export function useCreateTable() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sheet, rangeAddress, name, hasHeaders }: { sheet: string; rangeAddress: string; name: string; hasHeaders: boolean }) =>
+      tablesSvc.createTable(sheet, rangeAddress, name, hasHeaders),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-tables"] }),
+  });
+}
+
+export function useDeleteTable() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name }: { name: string }) =>
+      tablesSvc.deleteTable(name),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-tables"] }),
+  });
+}
+
+export function useRenameTable() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ oldName, newName }: { oldName: string; newName: string }) =>
+      tablesSvc.renameTable(oldName, newName),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-tables"] }),
+  });
+}
+
+export function useGoToTable() {
+  return useMutation({
+    mutationFn: ({ sheet, name }: { sheet: string; name: string }) =>
+      tablesSvc.goToTable(sheet, name),
   });
 }

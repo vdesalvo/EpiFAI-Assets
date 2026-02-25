@@ -13,6 +13,7 @@ declare namespace Excel {
   interface Workbook {
     names: NamedItemCollection;
     worksheets: WorksheetCollection;
+    tables: TableCollection;
     getSelectedRange(): Range;
   }
 
@@ -30,6 +31,7 @@ declare namespace Excel {
     names: NamedItemCollection;
     charts: ChartCollection;
     shapes: ShapeCollection;
+    tables: TableCollection;
     isNullObject: boolean;
     activate(): void;
     getRange(address?: string): Range;
@@ -56,6 +58,45 @@ declare namespace Excel {
     left: number;
     geometricShapeType: string;
     select(): void;
+    load(propertyNames?: string | string[]): void;
+  }
+
+  interface TableCollection {
+    items: Table[];
+    count: number;
+    add(address: Range | string, hasHeaders: boolean): Table;
+    getItem(name: string): Table;
+    load(propertyNames?: string | string[]): void;
+  }
+
+  interface Table {
+    id: number;
+    name: string;
+    showHeaders: boolean;
+    showTotals: boolean;
+    columns: TableColumnCollection;
+    getRange(): Range;
+    getDataBodyRange(): Range;
+    getHeaderRowRange(): Range;
+    convertToRange(): Range;
+    delete(): void;
+    load(propertyNames?: string | string[]): void;
+  }
+
+  interface TableColumnCollection {
+    items: TableColumn[];
+    count: number;
+    getItem(name: string): TableColumn;
+    getItemAt(index: number): TableColumn;
+    load(propertyNames?: string | string[]): void;
+  }
+
+  interface TableColumn {
+    id: number;
+    name: string;
+    index: number;
+    getRange(): Range;
+    getDataBodyRange(): Range;
     load(propertyNames?: string | string[]): void;
   }
 

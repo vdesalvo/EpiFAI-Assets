@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNames, useCharts, useImages, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useDeleteBrokenNames, useExportName, useRenameChart, useGoToChart, useGoToImage, useRenameImage, useCreateNameFromChart, useCreateNameFromImage } from "@/hooks/use-excel";
+import { useNames, useCharts, useImages, useTables, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useDeleteBrokenNames, useExportName, useRenameChart, useGoToChart, useGoToImage, useRenameImage, useCreateNameFromChart, useCreateNameFromImage, useCreateTable, useDeleteTable, useRenameTable, useGoToTable } from "@/hooks/use-excel";
 import { NameList } from "@/components/NameList";
 import { RangePicker } from "@/components/RangePicker";
 import { FullPageLoader, LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { ExcelName, getSelectionData } from "@/lib/excel-names";
-import { RefreshCw, Table2, BarChart3, Image, Info, Download, Plus, Check, Loader2 } from "lucide-react";
+import { RefreshCw, Table2, BarChart3, Image, Grid3X3, Info, Download, Plus, Check, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -101,6 +101,54 @@ function ChartListItem({ chart, onRename, onGoTo, onCreateName }: { chart: any, 
   );
 }
 
+function TableListItem({ table, onRename, onGoTo, onDelete }: { table: any, onRename: (oldName: string, newName: string) => void, onGoTo: (t: any) => void, onDelete: (name: string) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempName, setTempName] = useState(table.name);
+
+  const handleSave = () => {
+    if (tempName !== table.name) {
+      onRename(table.name, tempName);
+    }
+    setIsEditing(false);
+  };
+
+  return (
+    <div className="border-b p-4 flex items-center justify-between hover:bg-muted/20 transition-colors" data-testid={`row-table-${table.id}`}>
+      <div className="flex items-center gap-3 overflow-hidden">
+        <div className="w-10 h-10 rounded bg-teal-50 text-teal-600 flex items-center justify-center shrink-0 border border-teal-100">
+          <Grid3X3 className="w-5 h-5" />
+        </div>
+        <div className="min-w-0">
+          {isEditing ? (
+            <input 
+              className="text-sm font-semibold border rounded px-1 w-full"
+              value={tempName}
+              onChange={e => setTempName(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={e => e.key === 'Enter' && handleSave()}
+              autoFocus
+              data-testid={`input-table-rename-${table.id}`}
+            />
+          ) : (
+            <div className="text-sm font-semibold text-foreground truncate cursor-text" onClick={() => setIsEditing(true)} title="Click to rename">
+              {table.name}
+            </div>
+          )}
+          <div className="text-xs text-muted-foreground truncate">{table.sheet} • {table.rowCount} rows × {table.colCount} cols</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-1 shrink-0 ml-2">
+        <Button size="icon" variant="ghost" onClick={() => onDelete(table.name)} title="Convert back to range" data-testid={`button-delete-table-${table.id}`}>
+          <Trash2 className="w-4 h-4 text-muted-foreground" />
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => onGoTo(table)} data-testid={`button-goto-table-${table.id}`}>
+          Go To
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function ImageListItem({ image, onRename, onGoTo, onCreateName }: { image: any, onRename: (sheet: string, oldName: string, newName: string) => void, onGoTo: (img: any) => void, onCreateName: (img: any) => Promise<void> }) {
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(image.name);
@@ -182,6 +230,7 @@ export default function Home() {
   const { data: names = [], isLoading: loadingNames, refetch: refetchNames, error: namesError } = useNames();
   const { data: charts = [], isLoading: loadingCharts, refetch: refetchCharts, error: chartsError } = useCharts();
   const { data: images = [], isLoading: loadingImages, refetch: refetchImages, error: imagesError } = useImages();
+  const { data: tables = [], isLoading: loadingTables, refetch: refetchTables } = useTables();
   
   // Mutations
   const addName = useAddName();
@@ -196,6 +245,10 @@ export default function Home() {
   const renameImage = useRenameImage();
   const createNameFromChart = useCreateNameFromChart();
   const createNameFromImage = useCreateNameFromImage();
+  const createTable = useCreateTable();
+  const deleteTable = useDeleteTable();
+  const renameTableMut = useRenameTable();
+  const goToTable = useGoToTable();
   const exportName = useExportName();
 
   // UI State
@@ -211,6 +264,7 @@ export default function Home() {
     refetchNames();
     refetchCharts();
     refetchImages();
+    refetchTables();
     toast({ description: "Synced with Excel workbook" });
   };
 
@@ -238,9 +292,24 @@ export default function Home() {
     }
   };
 
-  const handleSaveName = async (data: { name: string; refersTo: string; comment: string; newName?: string; skipRows?: number; skipCols?: number; fixedRef?: string; dynamicRef?: string; lastColOnly?: boolean; lastRowOnly?: boolean; origRange?: string; expandRows?: boolean; expandCols?: boolean; skippedColIndices?: number[]; skippedRowIndices?: number[] }) => {
+  const handleSaveName = async (data: { name: string; refersTo: string; comment: string; newName?: string; skipRows?: number; skipCols?: number; fixedRef?: string; dynamicRef?: string; lastColOnly?: boolean; lastRowOnly?: boolean; origRange?: string; expandRows?: boolean; expandCols?: boolean; skippedColIndices?: number[]; skippedRowIndices?: number[]; createAsTable?: boolean; hasHeaders?: boolean }) => {
     try {
-      if (editTarget) {
+      if (data.createAsTable && !editTarget) {
+        const addr = data.origRange || data.refersTo.replace(/^=/, "");
+        let sheetName = "";
+        let rangeRef = addr;
+        if (addr.includes("!")) {
+          sheetName = addr.split("!")[0].replace(/'/g, "");
+          rangeRef = addr.split("!")[1];
+        }
+        if (!sheetName) {
+          throw new Error("Could not determine sheet name from selection");
+        }
+        const tableName = await createTable.mutateAsync({ sheet: sheetName, rangeAddress: rangeRef, name: data.name, hasHeaders: data.hasHeaders ?? true });
+        toast({ title: "Created", description: `Created table "${tableName}"` });
+        await refetchTables();
+        setActiveTab("charts");
+      } else if (editTarget) {
         await updateName.mutateAsync({ name: editTarget.name, updates: { ...data, skipRows: data.skipRows, skipCols: data.skipCols, fixedRef: data.fixedRef, dynamicRef: data.dynamicRef, lastColOnly: data.lastColOnly, lastRowOnly: data.lastRowOnly, origRange: data.origRange, expandRows: data.expandRows, expandCols: data.expandCols, skippedColIndices: data.skippedColIndices, skippedRowIndices: data.skippedRowIndices } });
         toast({ title: "Updated", description: `Updated range "${data.newName || data.name}"` });
       } else {
@@ -338,6 +407,24 @@ export default function Home() {
     }
   };
 
+  const handleRenameTable = async (oldName: string, newName: string) => {
+    try {
+      await renameTableMut.mutateAsync({ oldName, newName });
+      toast({ description: "Table renamed" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    }
+  };
+
+  const handleDeleteTable = async (name: string) => {
+    try {
+      await deleteTable.mutateAsync({ name });
+      toast({ description: `Table "${name}" converted back to range` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    }
+  };
+
   if (!init || (loadingNames && !names.length)) return <FullPageLoader />;
 
   return (
@@ -391,7 +478,7 @@ export default function Home() {
               <Table2 className="w-3.5 h-3.5 mr-2" /> Names ({names.length})
             </TabsTrigger>
             <TabsTrigger value="charts" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md transition-all">
-              <BarChart3 className="w-3.5 h-3.5 mr-2" /> Charts & Images ({charts.length + images.length})
+              <BarChart3 className="w-3.5 h-3.5 mr-2" /> Assets ({charts.length + images.length + tables.length})
             </TabsTrigger>
           </TabsList>
 
@@ -440,25 +527,36 @@ export default function Home() {
           </TabsContent>
 
           <TabsContent value="charts" className="flex-1 min-h-0 m-0 overflow-y-auto">
-             {(loadingCharts || loadingImages) && charts.length === 0 && images.length === 0 ? (
+             {(loadingCharts || loadingImages || loadingTables) && charts.length === 0 && images.length === 0 && tables.length === 0 ? (
                <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm p-8 text-center">
                  <BarChart3 className="w-12 h-12 mb-3 opacity-20" />
-                 <p>Loading charts & images...</p>
+                 <p>Loading assets...</p>
                </div>
-             ) : chartsError && imagesError ? (
+             ) : charts.length === 0 && images.length === 0 && tables.length === 0 ? (
                <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm p-8 text-center">
                  <BarChart3 className="w-12 h-12 mb-3 opacity-20" />
-                 <p>Could not load charts or images.</p>
-                 <p className="text-[10px] mt-2 text-destructive/70 max-w-[260px] break-all">{(chartsError as Error).message || String(chartsError)}</p>
-                 <Button size="sm" variant="outline" className="mt-3" onClick={() => { refetchCharts(); refetchImages(); }}>Retry</Button>
-               </div>
-             ) : charts.length === 0 && images.length === 0 ? (
-               <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm p-8 text-center">
-                 <BarChart3 className="w-12 h-12 mb-3 opacity-20" />
-                 <p>No charts or images found in this workbook.</p>
+                 <p>No charts, images, or tables found in this workbook.</p>
                </div>
              ) : (
                <div>
+                 {tables.length > 0 && (
+                   <>
+                     <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted/20 border-b" data-testid="section-tables-header">
+                       Tables ({tables.length})
+                     </div>
+                     <div className="divide-y">
+                       {tables.map(t => (
+                         <TableListItem
+                           key={t.id}
+                           table={t}
+                           onRename={handleRenameTable}
+                           onGoTo={(t) => goToTable.mutate({ sheet: t.sheet, name: t.name })}
+                           onDelete={handleDeleteTable}
+                         />
+                       ))}
+                     </div>
+                   </>
+                 )}
                  {charts.length > 0 && (
                    <>
                      <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted/20 border-b" data-testid="section-charts-header">
