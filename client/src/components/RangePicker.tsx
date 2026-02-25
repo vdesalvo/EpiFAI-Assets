@@ -292,17 +292,20 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
           let height: string;
           if (useExpandHeight) {
             const nextRow = bufferRowStart;
-            const maxBuf = bufferRowEnd - nextRow + 1;
             const useLabelCol = labelColNum < selStartColNum;
-            const contiguous = (col: string) => {
+            const countaExpr = (col: string) => {
               const bufRange = `${sp}$${col}$${nextRow}:$${col}$${bufferRowEnd}`;
-              return `IFERROR(MATCH(TRUE,INDEX(${bufRange}="",0),0)-1,${maxBuf})`;
+              const baseline = rowOverflowByCol[col] ?? 0;
+              if (baseline > 0) {
+                return `MAX(0,COUNTA(${bufRange})-${baseline})`;
+              }
+              return `COUNTA(${bufRange})`;
             };
             let expansionExpr: string;
             if (useLabelCol) {
-              expansionExpr = `MAX(${contiguous(labelCol)},${contiguous(c1)})`;
+              expansionExpr = `MAX(${countaExpr(labelCol)},${countaExpr(c1)})`;
             } else {
-              expansionExpr = contiguous(c1);
+              expansionExpr = countaExpr(c1);
             }
             const rowGap = isLastRowGroup ? Math.max(0, bufferRowStart - (r1 + rgHeight)) : 0;
             if (rowGap > 0) {
