@@ -9,56 +9,44 @@ export interface ExcelChart {
   isDefault?: boolean;
 }
 
+export interface ExcelImage {
+  id: string;
+  name: string;
+  type: string;
+  sheet: string;
+  width: number;
+  height: number;
+}
+
 export async function getAllCharts(): Promise<ExcelChart[]> {
   try {
-    const debugLog: string[] = [];
     return await Excel.run(async (ctx) => {
       const sheets = ctx.workbook.worksheets;
-      sheets.load("items");
+      sheets.load("items/name");
       await ctx.sync();
-
-      const sheetNames: string[] = [];
-      for (const sheet of sheets.items) {
-        sheet.load("name");
-      }
-      await ctx.sync();
-      for (const sheet of sheets.items) {
-        sheetNames.push(sheet.name);
-      }
-      debugLog.push(`Sheets(${sheets.items.length}): ${sheetNames.join(", ")}`);
-
       const charts: ExcelChart[] = [];
       for (const sheet of sheets.items) {
         try {
           const chartsCol = sheet.charts;
-          chartsCol.load("count");
+          chartsCol.load("items/name,items/id");
           await ctx.sync();
-          const count = chartsCol.count;
-          if (count > 0) {
-            chartsCol.load("items/name,items/id");
-            await ctx.sync();
-            for (const chart of chartsCol.items) {
-              let titleText = "(No Title)";
-              try {
-                chart.load("title/text");
-                await ctx.sync();
-                titleText = chart.title?.text || "(No Title)";
-              } catch { /* title not available */ }
-              charts.push({
-                id: chart.id,
-                name: chart.name,
-                title: titleText,
-                sheet: sheet.name
-              });
-            }
+          for (const chart of chartsCol.items) {
+            let titleText = "(No Title)";
+            try {
+              chart.load("title/text");
+              await ctx.sync();
+              titleText = chart.title?.text || "(No Title)";
+            } catch { /* title not available */ }
+            charts.push({
+              id: chart.id,
+              name: chart.name,
+              title: titleText,
+              sheet: sheet.name
+            });
           }
-          debugLog.push(`"${sheet.name}":${count}`);
-        } catch (sheetErr: any) {
-          debugLog.push(`"${sheet.name}":ERR(${sheetErr?.message || sheetErr})`);
+        } catch (sheetErr) {
+          console.warn(`Could not load charts for sheet "${sheet.name}":`, sheetErr);
         }
-      }
-      if (charts.length === 0 && debugLog.length > 0) {
-        throw new Error(`DEBUG: ${debugLog.join(" | ")}`);
       }
       return charts;
     });
@@ -72,6 +60,56 @@ export async function getAllCharts(): Promise<ExcelChart[]> {
     }
     throw error;
   }
+}
+
+export async function getAllImages(): Promise<ExcelImage[]> {
+  try {
+    return await Excel.run(async (ctx) => {
+      const sheets = ctx.workbook.worksheets;
+      sheets.load("items/name");
+      await ctx.sync();
+      const images: ExcelImage[] = [];
+      for (const sheet of sheets.items) {
+        try {
+          const shapesCol = sheet.shapes;
+          shapesCol.load("items/id,items/name,items/type,items/width,items/height");
+          await ctx.sync();
+          for (const shape of shapesCol.items) {
+            if (shape.type === "Image" || shape.type === "Group") {
+              images.push({
+                id: shape.id,
+                name: shape.name,
+                type: shape.type,
+                sheet: sheet.name,
+                width: Math.round(shape.width),
+                height: Math.round(shape.height),
+              });
+            }
+          }
+        } catch (sheetErr) {
+          console.warn(`Could not load shapes for sheet "${sheet.name}":`, sheetErr);
+        }
+      }
+      return images;
+    });
+  } catch (error) {
+    console.error("getAllImages error:", error);
+    if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
+      return [
+        { id: "img1", name: "Picture 1", type: "Image", sheet: "Sheet1", width: 400, height: 300 },
+        { id: "img2", name: "Picture 2", type: "Image", sheet: "Sheet1", width: 500, height: 350 },
+      ];
+    }
+    throw error;
+  }
+}
+
+export async function goToImage(sheetName: string): Promise<void> {
+  return Excel.run(async (ctx) => {
+    const sheet = ctx.workbook.worksheets.getItem(sheetName);
+    sheet.activate();
+    await ctx.sync();
+  });
 }
 
 export async function renameChart(sheetName: string, oldName: string, newName: string): Promise<void> {

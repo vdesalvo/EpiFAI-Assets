@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNames, useCharts, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useDeleteBrokenNames, useExportName, useRenameChart, useGoToChart, useCreateNameFromChart } from "@/hooks/use-excel";
+import { useNames, useCharts, useImages, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useDeleteBrokenNames, useExportName, useRenameChart, useGoToChart, useGoToImage, useCreateNameFromChart } from "@/hooks/use-excel";
 import { NameList } from "@/components/NameList";
 import { RangePicker } from "@/components/RangePicker";
 import { FullPageLoader, LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { ExcelName, getSelectionData } from "@/lib/excel-names";
-import { RefreshCw, Table2, BarChart3, Info, Download, Plus, Check, Loader2 } from "lucide-react";
+import { RefreshCw, Table2, BarChart3, Image, Info, Download, Plus, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -108,6 +108,7 @@ export default function Home() {
   // Data Hooks
   const { data: names = [], isLoading: loadingNames, refetch: refetchNames, error: namesError } = useNames();
   const { data: charts = [], isLoading: loadingCharts, refetch: refetchCharts, error: chartsError } = useCharts();
+  const { data: images = [], isLoading: loadingImages, refetch: refetchImages, error: imagesError } = useImages();
   
   // Mutations
   const addName = useAddName();
@@ -118,6 +119,7 @@ export default function Home() {
   const deleteBroken = useDeleteBrokenNames();
   const renameChart = useRenameChart();
   const goToChart = useGoToChart();
+  const goToImage = useGoToImage();
   const createNameFromChart = useCreateNameFromChart();
   const exportName = useExportName();
 
@@ -133,6 +135,7 @@ export default function Home() {
   const handleRefresh = () => {
     refetchNames();
     refetchCharts();
+    refetchImages();
     toast({ description: "Synced with Excel workbook" });
   };
 
@@ -295,7 +298,7 @@ export default function Home() {
               <Table2 className="w-3.5 h-3.5 mr-2" /> Names ({names.length})
             </TabsTrigger>
             <TabsTrigger value="charts" className="data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md transition-all">
-              <BarChart3 className="w-3.5 h-3.5 mr-2" /> Charts ({charts.length})
+              <BarChart3 className="w-3.5 h-3.5 mr-2" /> Charts & Images ({charts.length + images.length})
             </TabsTrigger>
           </TabsList>
 
@@ -344,29 +347,68 @@ export default function Home() {
           </TabsContent>
 
           <TabsContent value="charts" className="flex-1 min-h-0 m-0 overflow-y-auto">
-             {chartsError ? (
+             {(loadingCharts || loadingImages) && charts.length === 0 && images.length === 0 ? (
                <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm p-8 text-center">
                  <BarChart3 className="w-12 h-12 mb-3 opacity-20" />
-                 <p>Could not load charts.</p>
-                 <p className="text-[10px] mt-2 text-destructive/70 max-w-[260px] break-all">{(chartsError as Error).message || String(chartsError)}</p>
-                 <Button size="sm" variant="outline" className="mt-3" onClick={() => refetchCharts()}>Retry</Button>
+                 <p>Loading charts & images...</p>
                </div>
-             ) : charts.length === 0 ? (
+             ) : chartsError && imagesError ? (
                <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm p-8 text-center">
                  <BarChart3 className="w-12 h-12 mb-3 opacity-20" />
-                 <p>{loadingCharts ? "Loading charts..." : "No charts found in this workbook."}</p>
+                 <p>Could not load charts or images.</p>
+                 <p className="text-[10px] mt-2 text-destructive/70 max-w-[260px] break-all">{(chartsError as Error).message || String(chartsError)}</p>
+                 <Button size="sm" variant="outline" className="mt-3" onClick={() => { refetchCharts(); refetchImages(); }}>Retry</Button>
+               </div>
+             ) : charts.length === 0 && images.length === 0 ? (
+               <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm p-8 text-center">
+                 <BarChart3 className="w-12 h-12 mb-3 opacity-20" />
+                 <p>No charts or images found in this workbook.</p>
                </div>
              ) : (
-               <div className="divide-y">
-                 {charts.map(c => (
-                   <ChartListItem 
-                    key={c.id} 
-                    chart={c} 
-                    onRename={handleRenameChart}
-                    onGoTo={(c) => goToChart.mutate({sheet: c.sheet, name: c.name})}
-                    onCreateName={handleCreateNameFromChart}
-                  />
-                 ))}
+               <div>
+                 {charts.length > 0 && (
+                   <>
+                     <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted/20 border-b" data-testid="section-charts-header">
+                       Charts ({charts.length})
+                     </div>
+                     <div className="divide-y">
+                       {charts.map(c => (
+                         <ChartListItem 
+                          key={c.id} 
+                          chart={c} 
+                          onRename={handleRenameChart}
+                          onGoTo={(c) => goToChart.mutate({sheet: c.sheet, name: c.name})}
+                          onCreateName={handleCreateNameFromChart}
+                        />
+                       ))}
+                     </div>
+                   </>
+                 )}
+                 {images.length > 0 && (
+                   <>
+                     <div className="px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted/20 border-b" data-testid="section-images-header">
+                       Images ({images.length})
+                     </div>
+                     <div className="divide-y">
+                       {images.map(img => (
+                         <div key={img.id} className="border-b p-4 flex items-center justify-between hover:bg-muted/20 transition-colors" data-testid={`row-image-${img.id}`}>
+                           <div className="flex items-center gap-3 overflow-hidden">
+                             <div className="w-10 h-10 rounded bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
+                               <Image className="w-5 h-5" />
+                             </div>
+                             <div className="min-w-0">
+                               <div className="text-sm font-semibold text-foreground truncate">{img.name}</div>
+                               <div className="text-xs text-muted-foreground truncate">{img.type} • {img.sheet} • {img.width}×{img.height}</div>
+                             </div>
+                           </div>
+                           <Button size="sm" variant="ghost" onClick={() => goToImage.mutate({ sheet: img.sheet })} data-testid={`button-goto-image-${img.id}`}>
+                             Go To
+                           </Button>
+                         </div>
+                       ))}
+                     </div>
+                   </>
+                 )}
                </div>
              )}
           </TabsContent>

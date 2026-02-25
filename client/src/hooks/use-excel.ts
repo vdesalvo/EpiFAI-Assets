@@ -125,3 +125,19 @@ export function useCreateNameFromChart() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-names"] }),
   });
 }
+
+export function useImages() {
+  return useQuery({
+    queryKey: ["excel-images"],
+    queryFn: chartsSvc.getAllImages,
+    refetchOnWindowFocus: false,
+    retry: 2,
+  });
+}
+
+export function useGoToImage() {
+  return useMutation({
+    mutationFn: ({ sheet }: { sheet: string }) =>
+      chartsSvc.goToImage(sheet),
+  });
+}

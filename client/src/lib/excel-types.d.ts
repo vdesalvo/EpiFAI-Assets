@@ -29,12 +29,32 @@ declare namespace Excel {
     name: string;
     names: NamedItemCollection;
     charts: ChartCollection;
+    shapes: ShapeCollection;
     isNullObject: boolean;
     activate(): void;
     getRange(address?: string): Range;
     getRangeByIndexes(startRow: number, startColumn: number, rowCount: number, columnCount: number): Range;
     getUsedRangeOrNullObject(valuesOnly?: boolean): Range;
     onSelectionChanged: EventHandlers;
+    load(propertyNames?: string | string[]): void;
+  }
+
+  interface ShapeCollection {
+    items: Shape[];
+    count: number;
+    getItem(name: string): Shape;
+    load(propertyNames?: string | string[]): void;
+  }
+
+  interface Shape {
+    id: string;
+    name: string;
+    type: string;
+    width: number;
+    height: number;
+    top: number;
+    left: number;
+    geometricShapeType: string;
     load(propertyNames?: string | string[]): void;
   }
 

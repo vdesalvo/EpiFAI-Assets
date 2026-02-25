@@ -24,13 +24,13 @@ Preferred communication style: Simple, everyday language.
 
 ### Key Frontend Files
 - `client/src/lib/excel-names.ts` — Service layer wrapping Excel.js API for named range CRUD operations
-- `client/src/lib/excel-charts.ts` — Service layer wrapping Excel.js API for chart operations
+- `client/src/lib/excel-charts.ts` — Service layer wrapping Excel.js API for chart operations and image/shape detection via Shapes API
 - `client/src/lib/excel-types.d.ts` — Minimal TypeScript declarations for the Office.js/Excel namespace
 - `client/src/hooks/use-excel.ts` — React Query hooks wrapping the Excel service functions
 - `client/src/components/NameList.tsx` — Main list view for named ranges with search/filter
 - `client/src/components/NameEditor.tsx` — Form for creating/editing named ranges with range picker
 - `client/src/components/RangePicker.tsx` — Visual range picker: renders Excel selection as grid, supports row/col dimming (skip), fixed/dynamic column split, dynamic columns toggle (with last-col-only sub-toggle), dynamic rows toggle (with last-row-only sub-toggle)
-- `client/src/pages/Home.tsx` — Main page with tabbed interface (Names tab + Charts tab), three views: list, edit, visual-picker
+- `client/src/pages/Home.tsx` — Main page with tabbed interface (Names tab + Charts & Images tab), three views: list, edit, visual-picker
 
 ### Office.js Integration
 - The Office.js script is loaded via `<script>` tag in `client/index.html`
