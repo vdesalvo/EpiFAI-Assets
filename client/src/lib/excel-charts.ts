@@ -14,32 +14,47 @@ export async function getAllCharts(): Promise<ExcelChart[]> {
     const debugLog: string[] = [];
     return await Excel.run(async (ctx) => {
       const sheets = ctx.workbook.worksheets;
-      sheets.load("items/name");
+      sheets.load("items");
       await ctx.sync();
-      debugLog.push(`Sheets found: ${sheets.items.length} (${sheets.items.map(s => s.name).join(", ")})`);
+
+      const sheetNames: string[] = [];
+      for (const sheet of sheets.items) {
+        sheet.load("name");
+      }
+      await ctx.sync();
+      for (const sheet of sheets.items) {
+        sheetNames.push(sheet.name);
+      }
+      debugLog.push(`Sheets(${sheets.items.length}): ${sheetNames.join(", ")}`);
+
       const charts: ExcelChart[] = [];
       for (const sheet of sheets.items) {
         try {
           const chartsCol = sheet.charts;
-          chartsCol.load("items/name,items/id");
+          chartsCol.load("count");
           await ctx.sync();
-          debugLog.push(`  "${sheet.name}": ${chartsCol.items.length} charts`);
-          for (const chart of chartsCol.items) {
-            let titleText = "(No Title)";
-            try {
-              chart.load("title/text");
-              await ctx.sync();
-              titleText = chart.title?.text || "(No Title)";
-            } catch { /* title not available */ }
-            charts.push({
-              id: chart.id,
-              name: chart.name,
-              title: titleText,
-              sheet: sheet.name
-            });
+          const count = chartsCol.count;
+          if (count > 0) {
+            chartsCol.load("items/name,items/id");
+            await ctx.sync();
+            for (const chart of chartsCol.items) {
+              let titleText = "(No Title)";
+              try {
+                chart.load("title/text");
+                await ctx.sync();
+                titleText = chart.title?.text || "(No Title)";
+              } catch { /* title not available */ }
+              charts.push({
+                id: chart.id,
+                name: chart.name,
+                title: titleText,
+                sheet: sheet.name
+              });
+            }
           }
+          debugLog.push(`"${sheet.name}":${count}`);
         } catch (sheetErr: any) {
-          debugLog.push(`  "${sheet.name}": ERROR - ${sheetErr?.message || sheetErr}`);
+          debugLog.push(`"${sheet.name}":ERR(${sheetErr?.message || sheetErr})`);
         }
       }
       if (charts.length === 0 && debugLog.length > 0) {
