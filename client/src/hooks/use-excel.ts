@@ -141,3 +141,21 @@ export function useGoToImage() {
       chartsSvc.goToImage(sheet, name),
   });
 }
+
+export function useRenameImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sheet, oldName, newName }: { sheet: string; oldName: string; newName: string }) =>
+      chartsSvc.renameImage(sheet, oldName, newName),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-images"] }),
+  });
+}
+
+export function useCreateNameFromImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sheet, shapeName }: { sheet: string; shapeName: string }) =>
+      chartsSvc.createNameFromImage(sheet, shapeName),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["excel-names"] }),
+  });
+}

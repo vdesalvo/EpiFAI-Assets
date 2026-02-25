@@ -121,6 +121,58 @@ export async function goToImage(sheetName: string, shapeName: string): Promise<v
   });
 }
 
+export async function renameImage(sheetName: string, oldName: string, newName: string): Promise<void> {
+  return Excel.run(async (ctx) => {
+    const sheet = ctx.workbook.worksheets.getItem(sheetName);
+    const shape = sheet.shapes.getItem(oldName);
+    shape.name = newName;
+    await ctx.sync();
+  });
+}
+
+export async function createNameFromImage(sheetName: string, shapeName: string): Promise<string> {
+  const result = await Excel.run(async (ctx) => {
+    const sheet = ctx.workbook.worksheets.getItem(sheetName);
+    const shape = sheet.shapes.getItem(shapeName);
+    shape.load("top,left,width,height,name");
+    const names = ctx.workbook.names;
+    names.load("items/name");
+    await ctx.sync();
+
+    const existing = names.items.map(n => n.name.toLowerCase());
+
+    const topLeft = sheet.getRangeByIndexes(0, 0, 1, 1);
+    topLeft.load("rowIndex,columnIndex");
+    await ctx.sync();
+
+    const startCell = sheet.getRangeByIndexes(
+      Math.max(0, Math.floor(shape.top / 20)),
+      Math.max(0, Math.floor(shape.left / 64)),
+      1, 1
+    );
+    const endCell = sheet.getRangeByIndexes(
+      Math.max(0, Math.floor((shape.top + shape.height) / 20)),
+      Math.max(0, Math.floor((shape.left + shape.width) / 64)),
+      1, 1
+    );
+    const combined = startCell.getBoundingRect(endCell);
+    combined.load("address");
+    await ctx.sync();
+
+    return { title: shape.name, address: combined.address, existing };
+  });
+
+  const baseName = sanitizeChartTitle(result.title);
+  let finalName = baseName;
+  let suffix = 1;
+  while (result.existing.includes(finalName.toLowerCase())) {
+    finalName = `${baseName}_${suffix++}`;
+  }
+
+  await addName(finalName, `=${result.address}`, "", "Workbook");
+  return finalName;
+}
+
 export async function renameChart(sheetName: string, oldName: string, newName: string): Promise<void> {
   return Excel.run(async (ctx) => {
     const sheet = ctx.workbook.worksheets.getItem(sheetName);

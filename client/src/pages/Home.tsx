@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNames, useCharts, useImages, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useDeleteBrokenNames, useExportName, useRenameChart, useGoToChart, useGoToImage, useCreateNameFromChart } from "@/hooks/use-excel";
+import { useNames, useCharts, useImages, useAddName, useUpdateName, useDeleteName, useGoToName, useClaimName, useDeleteBrokenNames, useExportName, useRenameChart, useGoToChart, useGoToImage, useRenameImage, useCreateNameFromChart, useCreateNameFromImage } from "@/hooks/use-excel";
 import { NameList } from "@/components/NameList";
 import { RangePicker } from "@/components/RangePicker";
 import { FullPageLoader, LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -101,6 +101,79 @@ function ChartListItem({ chart, onRename, onGoTo, onCreateName }: { chart: any, 
   );
 }
 
+function ImageListItem({ image, onRename, onGoTo, onCreateName }: { image: any, onRename: (sheet: string, oldName: string, newName: string) => void, onGoTo: (img: any) => void, onCreateName: (img: any) => Promise<void> }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempName, setTempName] = useState(image.name);
+  const [creating, setCreating] = useState<"idle" | "loading" | "done">("idle");
+
+  const handleSave = () => {
+    if (tempName !== image.name) {
+      onRename(image.sheet, image.name, tempName);
+    }
+    setIsEditing(false);
+  };
+
+  const handleCreate = async () => {
+    setCreating("loading");
+    try {
+      await onCreateName(image);
+      setCreating("done");
+      setTimeout(() => setCreating("idle"), 2000);
+    } catch {
+      setCreating("idle");
+    }
+  };
+
+  return (
+    <div className="border-b p-4 flex items-center justify-between hover:bg-muted/20 transition-colors" data-testid={`row-image-${image.id}`}>
+      <div className="flex items-center gap-3 overflow-hidden">
+        <div className="w-10 h-10 rounded bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
+          <Image className="w-5 h-5" />
+        </div>
+        <div className="min-w-0">
+          {isEditing ? (
+            <input 
+              className="text-sm font-semibold border rounded px-1 w-full"
+              value={tempName}
+              onChange={e => setTempName(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={e => e.key === 'Enter' && handleSave()}
+              autoFocus
+              data-testid={`input-image-rename-${image.id}`}
+            />
+          ) : (
+            <div className="text-sm font-semibold text-foreground truncate cursor-text" onClick={() => setIsEditing(true)} title="Click to rename">
+              {image.name}
+            </div>
+          )}
+          <div className="text-xs text-muted-foreground truncate">{image.type} • {image.sheet} • {image.width}×{image.height}</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-1 shrink-0 ml-2">
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={handleCreate}
+          disabled={creating === "loading"}
+          title="Create named range from image position"
+          data-testid={`button-create-name-image-${image.id}`}
+        >
+          {creating === "loading" ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : creating === "done" ? (
+            <Check className="w-4 h-4 text-green-600" />
+          ) : (
+            <Plus className="w-4 h-4" />
+          )}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => onGoTo(image)} data-testid={`button-goto-image-${image.id}`}>
+          Go To
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [init, setInit] = useState(false);
   const { toast } = useToast();
@@ -120,7 +193,9 @@ export default function Home() {
   const renameChart = useRenameChart();
   const goToChart = useGoToChart();
   const goToImage = useGoToImage();
+  const renameImage = useRenameImage();
   const createNameFromChart = useCreateNameFromChart();
+  const createNameFromImage = useCreateNameFromImage();
   const exportName = useExportName();
 
   // UI State
@@ -240,6 +315,24 @@ export default function Home() {
     try {
       await renameChart.mutateAsync({ sheet: chart.sheet, oldName: chart.name, newName });
       toast({ description: "Chart renamed" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    }
+  };
+
+  const handleRenameImage = async (sheet: string, oldName: string, newName: string) => {
+    try {
+      await renameImage.mutateAsync({ sheet, oldName, newName });
+      toast({ description: "Image renamed" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    }
+  };
+
+  const handleCreateNameFromImage = async (img: any) => {
+    try {
+      const name = await createNameFromImage.mutateAsync({ sheet: img.sheet, shapeName: img.name });
+      toast({ description: `Named range "${name}" created from image` });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Error", description: e.message });
     }
@@ -391,20 +484,13 @@ export default function Home() {
                      </div>
                      <div className="divide-y">
                        {images.map(img => (
-                         <div key={img.id} className="border-b p-4 flex items-center justify-between hover:bg-muted/20 transition-colors" data-testid={`row-image-${img.id}`}>
-                           <div className="flex items-center gap-3 overflow-hidden">
-                             <div className="w-10 h-10 rounded bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
-                               <Image className="w-5 h-5" />
-                             </div>
-                             <div className="min-w-0">
-                               <div className="text-sm font-semibold text-foreground truncate">{img.name}</div>
-                               <div className="text-xs text-muted-foreground truncate">{img.type} • {img.sheet} • {img.width}×{img.height}</div>
-                             </div>
-                           </div>
-                           <Button size="sm" variant="ghost" onClick={() => goToImage.mutate({ sheet: img.sheet, name: img.name })} data-testid={`button-goto-image-${img.id}`}>
-                             Go To
-                           </Button>
-                         </div>
+                         <ImageListItem
+                           key={img.id}
+                           image={img}
+                           onRename={handleRenameImage}
+                           onGoTo={(img) => goToImage.mutate({ sheet: img.sheet, name: img.name })}
+                           onCreateName={handleCreateNameFromImage}
+                         />
                        ))}
                      </div>
                    </>
