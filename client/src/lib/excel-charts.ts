@@ -19,12 +19,15 @@ export async function getAllCharts(): Promise<ExcelChart[]> {
 
   return await Excel.run(async (ctx) => {
     const sheets = ctx.workbook.worksheets;
-    sheets.load("items/name,items/charts/items/name,items/charts/items/id");
+    sheets.load("items/name");
     await ctx.sync();
 
     const results: ExcelChart[] = [];
 
     for (const sheet of sheets.items) {
+      sheet.charts.load("items/name,items/id");
+      await ctx.sync();
+
       for (const chart of sheet.charts.items) {
         let titleText = "(No Title)";
         try {
