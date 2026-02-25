@@ -11,16 +11,19 @@ export interface ExcelChart {
 
 export async function getAllCharts(): Promise<ExcelChart[]> {
   try {
+    const debugLog: string[] = [];
     return await Excel.run(async (ctx) => {
       const sheets = ctx.workbook.worksheets;
       sheets.load("items/name");
       await ctx.sync();
+      debugLog.push(`Sheets found: ${sheets.items.length} (${sheets.items.map(s => s.name).join(", ")})`);
       const charts: ExcelChart[] = [];
       for (const sheet of sheets.items) {
         try {
           const chartsCol = sheet.charts;
           chartsCol.load("items/name,items/id");
           await ctx.sync();
+          debugLog.push(`  "${sheet.name}": ${chartsCol.items.length} charts`);
           for (const chart of chartsCol.items) {
             let titleText = "(No Title)";
             try {
@@ -35,9 +38,12 @@ export async function getAllCharts(): Promise<ExcelChart[]> {
               sheet: sheet.name
             });
           }
-        } catch (sheetErr) {
-          console.warn(`Could not load charts for sheet "${sheet.name}":`, sheetErr);
+        } catch (sheetErr: any) {
+          debugLog.push(`  "${sheet.name}": ERROR - ${sheetErr?.message || sheetErr}`);
         }
+      }
+      if (charts.length === 0 && debugLog.length > 0) {
+        throw new Error(`DEBUG: ${debugLog.join(" | ")}`);
       }
       return charts;
     });
