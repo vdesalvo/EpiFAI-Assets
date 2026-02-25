@@ -10,53 +10,35 @@ export interface ExcelChart {
 }
 
 export async function getAllCharts(): Promise<ExcelChart[]> {
-  if (typeof Excel === "undefined" || !window.hasOwnProperty("Excel")) {
-    return [
-      { id: "c1", name: "Chart 1", title: "Sales 2024", sheet: "Sheet1" },
-      { id: "c2", name: "Chart 2", title: "Growth", sheet: "Sheet1" },
-    ];
-  }
-
-  return await Excel.run(async (ctx) => {
-    const sheets = ctx.workbook.worksheets;
-    sheets.load("items");
-    await ctx.sync();
-
-    const results: ExcelChart[] = [];
-
-    for (const sheet of sheets.items) {
-      try {
-        const charts = sheet.charts;
-        charts.load("items");
+  try {
+    return await Excel.run(async (ctx) => {
+      const sheets = ctx.workbook.worksheets;
+      sheets.load("items/name,items/charts");
+      await ctx.sync();
+      const charts: ExcelChart[] = [];
+      for (const sheet of sheets.items) {
+        sheet.charts.load("items/name,items/id,items/title/text");
         await ctx.sync();
-
-        for (const chart of charts.items) {
-          chart.load("id,name");
-          await ctx.sync();
-
-          let titleText = "(No Title)";
-          try {
-            chart.title.load("text");
-            await ctx.sync();
-            titleText = chart.title.text || "(No Title)";
-          } catch {
-            // title not accessible
-          }
-
-          results.push({
+        for (const chart of sheet.charts.items) {
+          charts.push({
             id: chart.id,
             name: chart.name,
-            title: titleText,
-            sheet: sheet.name,
+            title: chart.title?.text || "(No Title)",
+            sheet: sheet.name
           });
         }
-      } catch (e) {
-        console.warn(`Could not load charts for sheet "${sheet.name}":`, e);
       }
+      return charts;
+    });
+  } catch (error) {
+    if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
+      return [
+        { id: "c1", name: "Chart 1", title: "Sales 2024", sheet: "Sheet1" },
+        { id: "c2", name: "Chart 2", title: "Growth", sheet: "Sheet1" }
+      ];
     }
-
-    return results;
-  });
+    throw error;
+  }
 }
 
 export async function renameChart(sheetName: string, oldName: string, newName: string): Promise<void> {
