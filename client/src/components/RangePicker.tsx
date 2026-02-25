@@ -254,10 +254,6 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
     const selStartColNum = colToNum(selectionData.startCol);
     const selEndColNum = colToNum(selectionData.endCol);
     const selEndRow = selectionData.endRow;
-    const colOverflowByRow = selectionData.colOverflowByRow ?? {};
-    const rowOverflowByCol = selectionData.rowOverflowByCol ?? {};
-    const labelColNum = Math.max(1, selStartColNum - 1);
-    const labelCol = numToCol(labelColNum);
     const lastColGroup = colGroups[colGroups.length - 1];
     const lastActiveCol = colToNum(lastColGroup[lastColGroup.length - 1]);
     const lastRowGroup = rowGroups[rowGroups.length - 1];
@@ -292,21 +288,12 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
           let height: string;
           if (useExpandHeight) {
             const nextRow = bufferRowStart;
-            const useLabelCol = labelColNum < selStartColNum;
-            const countaExpr = (col: string) => {
-              const bufRange = `${sp}$${col}$${nextRow}:$${col}$${bufferRowEnd}`;
-              const baseline = rowOverflowByCol[col] ?? 0;
-              if (baseline > 0) {
-                return `MAX(0,COUNTA(${bufRange})-${baseline})`;
-              }
-              return `COUNTA(${bufRange})`;
-            };
-            let expansionExpr: string;
-            if (useLabelCol) {
-              expansionExpr = `MAX(${countaExpr(labelCol)},${countaExpr(c1)})`;
-            } else {
-              expansionExpr = countaExpr(c1);
-            }
+            const maxBuf = bufferRowEnd - nextRow + 1;
+            const fullStartCol = selectionData.startCol;
+            const fullEndCol = selectionData.endCol;
+            const fullWidth = colToNum(fullEndCol) - colToNum(fullStartCol) + 1;
+            const rowBufRange = `${sp}$${fullStartCol}$${nextRow}:$${fullEndCol}$${bufferRowEnd}`;
+            const expansionExpr = `IFERROR(MATCH(0,MMULT(--(${rowBufRange}<>""),ROW(INDIRECT("1:${fullWidth}"))^0),0)-1,${maxBuf})`;
             const rowGap = isLastRowGroup ? Math.max(0, bufferRowStart - (r1 + rgHeight)) : 0;
             if (rowGap > 0) {
               height = `${rgHeight}+IF(${expansionExpr}>0,${rowGap}+${expansionExpr},0)`;
@@ -320,19 +307,14 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
           if (useExpandWidth) {
             const nextCol = numToCol(bufferColStart);
             const bufferCol = numToCol(bufferColEnd);
-            const extraRange = `${sp}$${nextCol}$${r1}:$${bufferCol}$${r1}`;
-            const colBaseline = colOverflowByRow[r1] ?? 0;
-            let colExpansionExpr: string;
-            if (colBaseline > 0) {
-              colExpansionExpr = `MAX(0,COUNTA(${extraRange})-${colBaseline})`;
-            } else {
-              colExpansionExpr = `COUNTA(${extraRange})`;
-            }
+            const maxColBuf = bufferColEnd - bufferColStart + 1;
+            const colBufRange = `${sp}$${nextCol}$${r1}:$${bufferCol}$${r2}`;
+            const expansionExpr = `IFERROR(MATCH(0,MMULT(TRANSPOSE(ROW(INDIRECT("1:${rgHeight}"))^0),--(${colBufRange}<>"")),0)-1,${maxColBuf})`;
             const colGap = isLastColGroup ? Math.max(0, bufferColStart - (colToNum(c1) + cgWidth)) : 0;
             if (colGap > 0) {
-              width = `${cgWidth}+IF(${colExpansionExpr}>0,${colGap}+${colExpansionExpr},0)`;
+              width = `${cgWidth}+IF(${expansionExpr}>0,${colGap}+${expansionExpr},0)`;
             } else {
-              width = `${cgWidth}+${colExpansionExpr}`;
+              width = `${cgWidth}+${expansionExpr}`;
             }
           } else {
             width = String(cgWidth);
