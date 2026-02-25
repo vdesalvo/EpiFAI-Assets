@@ -137,7 +137,7 @@ export function useImages() {
 
 export function useGoToImage() {
   return useMutation({
-    mutationFn: ({ sheet }: { sheet: string }) =>
-      chartsSvc.goToImage(sheet),
+    mutationFn: ({ sheet, name }: { sheet: string; name: string }) =>
+      chartsSvc.goToImage(sheet, name),
   });
 }

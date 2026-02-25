@@ -104,11 +104,20 @@ export async function getAllImages(): Promise<ExcelImage[]> {
   }
 }
 
-export async function goToImage(sheetName: string): Promise<void> {
+export async function goToImage(sheetName: string, shapeName: string): Promise<void> {
   return Excel.run(async (ctx) => {
     const sheet = ctx.workbook.worksheets.getItem(sheetName);
     sheet.activate();
-    await ctx.sync();
+    try {
+      const shape = sheet.shapes.getItem(shapeName);
+      shape.load("top,left");
+      await ctx.sync();
+      const range = sheet.getRangeByIndexes(0, 0, 1, 1);
+      range.select();
+      await ctx.sync();
+    } catch {
+      await ctx.sync();
+    }
   });
 }
 

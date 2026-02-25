@@ -401,7 +401,7 @@ export default function Home() {
                                <div className="text-xs text-muted-foreground truncate">{img.type} • {img.sheet} • {img.width}×{img.height}</div>
                              </div>
                            </div>
-                           <Button size="sm" variant="ghost" onClick={() => goToImage.mutate({ sheet: img.sheet })} data-testid={`button-goto-image-${img.id}`}>
+                           <Button size="sm" variant="ghost" onClick={() => goToImage.mutate({ sheet: img.sheet, name: img.name })} data-testid={`button-goto-image-${img.id}`}>
                              Go To
                            </Button>
                          </div>
