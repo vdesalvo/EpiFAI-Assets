@@ -9,7 +9,16 @@ const renderApp = () => {
     root.render(<App />);
   } catch (e) {
     console.error("Failed to render app:", e);
-    document.getElementById("root")!.innerHTML = `<div style="padding:20px;font-family:sans-serif"><h3>Failed to load</h3><p>${e}</p></div>`;
+    const container = document.getElementById("root")!;
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "padding:20px;font-family:sans-serif";
+    const heading = document.createElement("h3");
+    heading.textContent = "Failed to load";
+    const message = document.createElement("p");
+    message.textContent = String(e);
+    wrapper.appendChild(heading);
+    wrapper.appendChild(message);
+    container.appendChild(wrapper);
   }
 };
 
