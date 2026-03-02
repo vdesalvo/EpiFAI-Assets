@@ -804,27 +804,56 @@ export async function exportNameToSheet(params: { name: string; scope: string })
 
     const finalParts = filteredPartValues.length > 0 ? filteredPartValues : partValues;
 
-    const totalCols = finalParts.reduce((sum, pv) => sum + (pv[0]?.length || 0), 0);
-    const maxRows = Math.max(...finalParts.map(v => v.length));
+    const allSameWidth = finalParts.length > 1 &&
+      finalParts.every(pv => (pv[0]?.length || 0) === (finalParts[0][0]?.length || 0));
 
-    const headerRow: any[] = [params.name];
-    for (let i = 1; i < totalCols; i++) headerRow.push("");
-    const headerCell = exportSheet.getRangeByIndexes(0, startCol, 1, totalCols);
-    headerCell.values = [headerRow];
-    headerCell.format.font.bold = true;
+    let exportData: any[][];
+    let dataCols: number;
 
-    let colOffset = startCol;
-    for (const pv of finalParts) {
-      const pvRows = pv.length;
-      const pvCols = pv[0]?.length || 0;
-      if (pvRows > 0 && pvCols > 0) {
-        const dataRange = exportSheet.getRangeByIndexes(1, colOffset, pvRows, pvCols);
-        dataRange.values = pv;
-        colOffset += pvCols;
+    if (allSameWidth) {
+      exportData = [];
+      for (const pv of finalParts) {
+        for (const row of pv) {
+          exportData.push(row);
+        }
+      }
+      dataCols = finalParts[0][0]?.length || 0;
+    } else {
+      dataCols = finalParts.reduce((sum, pv) => sum + (pv[0]?.length || 0), 0);
+      const maxRows = Math.max(...finalParts.map(v => v.length));
+      exportData = [];
+      for (let r = 0; r < maxRows; r++) {
+        const row: any[] = [];
+        for (const pv of finalParts) {
+          const pvCols = pv[0]?.length || 0;
+          if (r < pv.length) {
+            row.push(...pv[r]);
+          } else {
+            row.push(...new Array(pvCols).fill(""));
+          }
+        }
+        exportData.push(row);
       }
     }
 
-    const fullRange = exportSheet.getRangeByIndexes(0, startCol, maxRows + 1, totalCols);
+    const totalRows = exportData.length;
+
+    if (dataCols === 0 || totalRows === 0) {
+      throw new Error("No data could be read from the named range.");
+    }
+
+    const headerRow: any[] = [params.name];
+    for (let i = 1; i < dataCols; i++) headerRow.push("");
+    const headerCell = exportSheet.getRangeByIndexes(0, startCol, 1, dataCols);
+    headerCell.values = [headerRow];
+    headerCell.format.font.bold = true;
+
+    if (totalRows > 0 && dataCols > 0) {
+      const dataRange = exportSheet.getRangeByIndexes(1, startCol, totalRows, dataCols);
+      dataRange.values = exportData;
+    }
+
+    const fullRange = exportSheet.getRangeByIndexes(0, startCol, totalRows + 1, dataCols);
     fullRange.format.autofitColumns();
 
     exportSheet.activate();
@@ -833,7 +862,7 @@ export async function exportNameToSheet(params: { name: string; scope: string })
     fullRange.select();
     await ctx.sync();
 
-    return { rowCount: maxRows, colCount: totalCols };
+    return { rowCount: totalRows, colCount: dataCols };
   });
 }
 
