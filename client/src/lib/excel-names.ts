@@ -660,10 +660,15 @@ export async function exportNameToSheet(params: { name: string; scope: string })
 
     const formula = namedItem.formula;
     const rawFormula = formula.replace(/^=/, "");
-    const comment = namedItem.comment || "";
+    const rawComment = namedItem.comment || "";
 
-    const storedAreas = parseMultiAreasTag(comment);
+    const storedAreas = parseMultiAreasTag(rawComment);
     const formulaParts = storedAreas.length > 1 ? storedAreas : splitFormulaTopLevel(rawFormula);
+
+    const skip = parseSkipTag(rawComment);
+    const skippedColIdx = new Set(parseSkipColIndicesTag(rawComment));
+    const skippedRowIdx = new Set(parseSkipRowIndicesTag(rawComment));
+
     let partValues: any[][][] = [];
     const tempNames: string[] = [];
 
@@ -768,8 +773,39 @@ export async function exportNameToSheet(params: { name: string; scope: string })
       startCol = usedRange.columnIndex + usedRange.columnCount + 1;
     }
 
-    const totalCols = partValues.reduce((sum, pv) => sum + (pv[0]?.length || 0), 0);
-    const maxRows = Math.max(...partValues.map(v => v.length));
+    const filteredPartValues: any[][][] = [];
+    for (const pv of partValues) {
+      const pvCols = pv[0]?.length || 0;
+
+      const hasSkips = skip.skipRows > 0 || skip.skipCols > 0 || skippedColIdx.size > 0 || skippedRowIdx.size > 0;
+      if (!hasSkips || pvCols <= 1) {
+        filteredPartValues.push(pv);
+        continue;
+      }
+
+      const keepCols: number[] = [];
+      for (let c = 0; c < pvCols; c++) {
+        if (c < skip.skipCols) continue;
+        if (skippedColIdx.has(c)) continue;
+        keepCols.push(c);
+      }
+
+      const filtered: any[][] = [];
+      for (let r = 0; r < pv.length; r++) {
+        if (r < skip.skipRows) continue;
+        if (skippedRowIdx.has(r)) continue;
+        filtered.push(keepCols.map(c => pv[r][c]));
+      }
+
+      if (filtered.length > 0 && filtered[0].length > 0) {
+        filteredPartValues.push(filtered);
+      }
+    }
+
+    const finalParts = filteredPartValues.length > 0 ? filteredPartValues : partValues;
+
+    const totalCols = finalParts.reduce((sum, pv) => sum + (pv[0]?.length || 0), 0);
+    const maxRows = Math.max(...finalParts.map(v => v.length));
 
     const headerRow: any[] = [params.name];
     for (let i = 1; i < totalCols; i++) headerRow.push("");
@@ -778,7 +814,7 @@ export async function exportNameToSheet(params: { name: string; scope: string })
     headerCell.format.font.bold = true;
 
     let colOffset = startCol;
-    for (const pv of partValues) {
+    for (const pv of finalParts) {
       const pvRows = pv.length;
       const pvCols = pv[0]?.length || 0;
       if (pvRows > 0 && pvCols > 0) {
