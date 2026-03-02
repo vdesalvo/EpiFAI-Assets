@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { SelectionData, ExcelName, readRangeData, splitFormulaTopLevel } from "@/lib/excel-names";
+import { SelectionData, ExcelName, readRangeData, splitFormulaTopLevel, getMultiAreaSelectionData } from "@/lib/excel-names";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -145,16 +145,22 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
   const handlePick = async () => {
     setLoading(true);
     try {
-      const data = await onPickSelection();
-      if (data) {
-        if (multiArea) {
-          const dup = areas.some(a => a.address === data.address);
-          if (dup) {
-            toast({ description: "This range is already in the list." });
-          } else {
-            setAreas(prev => [...prev, { address: data.address, rows: data.rowCount, cols: data.colCount }]);
-          }
-        } else {
+      if (multiArea) {
+        const items = await getMultiAreaSelectionData();
+        if (items.length > 0) {
+          setAreas(prev => {
+            const existing = new Set(prev.map(a => a.address));
+            const newItems = items.filter(item => !existing.has(item.address));
+            if (newItems.length === 0) {
+              toast({ description: "All selected ranges are already in the list." });
+              return prev;
+            }
+            return [...prev, ...newItems];
+          });
+        }
+      } else {
+        const data = await onPickSelection();
+        if (data) {
           setSelectionData(data);
           setSkippedRows(new Set());
           setSkippedCols(new Set());

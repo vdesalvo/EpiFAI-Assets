@@ -15,6 +15,21 @@ declare namespace Excel {
     worksheets: WorksheetCollection;
     tables: TableCollection;
     getSelectedRange(): Range;
+    getSelectedRanges(): RangeAreas;
+  }
+
+  interface RangeAreas {
+    areas: RangeCollection;
+    address: string;
+    areaCount: number;
+    load(propertyNames?: string | string[]): void;
+  }
+
+  interface RangeCollection {
+    items: Range[];
+    count: number;
+    getItemAt(index: number): Range;
+    load(propertyNames?: string | string[]): void;
   }
 
   interface WorksheetCollection {

@@ -959,6 +959,56 @@ export async function getSelectionData(): Promise<SelectionData> {
   }
 }
 
+export interface MultiAreaItem {
+  address: string;
+  rows: number;
+  cols: number;
+}
+
+export async function getMultiAreaSelectionData(): Promise<MultiAreaItem[]> {
+  try {
+    return await Excel.run(async (ctx) => {
+      const worksheet = ctx.workbook.worksheets.getActiveWorksheet();
+      worksheet.load("name");
+
+      const rangeAreas = ctx.workbook.getSelectedRanges();
+      rangeAreas.load("areaCount");
+      rangeAreas.areas.load("items");
+      await ctx.sync();
+
+      const results: MultiAreaItem[] = [];
+
+      for (const area of rangeAreas.areas.items) {
+        area.load("address,rowCount,columnCount");
+      }
+      await ctx.sync();
+
+      const sheet = worksheet.name;
+      const quotedSheet = /^[A-Za-z_][A-Za-z0-9_]*$/.test(sheet) ? sheet : `'${sheet.replace(/'/g, "''")}'`;
+      for (const area of rangeAreas.areas.items) {
+        const addr = area.address.includes("!") ? area.address : `${quotedSheet}!${area.address}`;
+        results.push({
+          address: addr,
+          rows: area.rowCount,
+          cols: area.columnCount,
+        });
+      }
+
+      return results;
+    });
+  } catch (error) {
+    console.error("Error fetching multi-area selection data:", error);
+    if (import.meta.env.DEV && !window.hasOwnProperty('Excel')) {
+      console.warn("Mocking multi-area selection data for development");
+      return [
+        { address: "Sheet1!$A$1:$B$5", rows: 5, cols: 2 },
+        { address: "Sheet1!$D$1:$E$5", rows: 5, cols: 2 },
+      ];
+    }
+    throw error;
+  }
+}
+
 export async function onSelectionChange(cb: (address: string) => void): Promise<() => Promise<void>> {
   let active = true;
   let lastAddr = "";
