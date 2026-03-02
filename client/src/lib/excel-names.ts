@@ -664,15 +664,16 @@ export async function exportNameToSheet(params: { name: string; scope: string })
 
     const storedAreas = parseMultiAreasTag(comment);
     const formulaParts = storedAreas.length > 1 ? storedAreas : splitFormulaTopLevel(rawFormula);
-    const partValues: any[][][] = [];
+    let partValues: any[][][] = [];
     const tempNames: string[] = [];
 
     try {
+      const directRanges: { idx: number; range: any }[] = [];
+      const fallbackParts: { idx: number; part: string }[] = [];
+
       for (let i = 0; i < formulaParts.length; i++) {
         const part = formulaParts[i].trim();
         if (!part) continue;
-
-        let resolved = false;
 
         const sheetMatch = part.match(/^(?:'([^']+)'|([A-Za-z0-9_]+))!/);
         const hasDynFunc = /OFFSET\(|INDIRECT\(|INDEX\(/i.test(part);
@@ -682,35 +683,58 @@ export async function exportNameToSheet(params: { name: string; scope: string })
             const sheetName = sheetMatch[1] || sheetMatch[2];
             const ref = part.substring(sheetMatch[0].length);
             const partRange = ctx.workbook.worksheets.getItem(sheetName).getRange(ref);
-            partRange.load("values");
-            await ctx.sync();
-            partValues.push(partRange.values);
-            resolved = true;
+            partRange.load("values,address");
+            directRanges.push({ idx: i, range: partRange });
           } catch (e) {
-            console.warn(`Export: direct getRange failed for part "${part}", trying temp name approach`, e);
+            fallbackParts.push({ idx: i, part });
           }
-        }
-
-        if (!resolved) {
-          try {
-            const tempName = `_epifai_tmp_${Date.now()}_${i}`;
-            tempNames.push(tempName);
-            ctx.workbook.names.add(tempName, `=${part}`);
-            await ctx.sync();
-            const tempItem = ctx.workbook.names.getItem(tempName);
-            const tempRange = tempItem.getRangeOrNullObject();
-            tempRange.load("isNullObject,values");
-            await ctx.sync();
-            if (!tempRange.isNullObject) {
-              partValues.push(tempRange.values);
-            }
-            tempItem.delete();
-            await ctx.sync();
-          } catch (e) {
-            console.warn(`Export: temp name approach also failed for part "${part}"`, e);
-          }
+        } else {
+          fallbackParts.push({ idx: i, part });
         }
       }
+
+      if (directRanges.length > 0) {
+        await ctx.sync();
+      }
+
+      const indexedValues: { idx: number; values: any[][] }[] = [];
+
+      for (const dr of directRanges) {
+        try {
+          if (dr.range.values) {
+            indexedValues.push({ idx: dr.idx, values: dr.range.values });
+          } else {
+            const part = formulaParts[dr.idx].trim();
+            fallbackParts.push({ idx: dr.idx, part });
+          }
+        } catch (e) {
+          const part = formulaParts[dr.idx].trim();
+          fallbackParts.push({ idx: dr.idx, part });
+        }
+      }
+
+      for (const fb of fallbackParts) {
+        try {
+          const tempName = `_epifai_tmp_${Date.now()}_${fb.idx}`;
+          tempNames.push(tempName);
+          ctx.workbook.names.add(tempName, `=${fb.part}`);
+          await ctx.sync();
+          const tempItem = ctx.workbook.names.getItem(tempName);
+          const tempRange = tempItem.getRangeOrNullObject();
+          tempRange.load("isNullObject,values");
+          await ctx.sync();
+          if (!tempRange.isNullObject) {
+            indexedValues.push({ idx: fb.idx, values: tempRange.values });
+          }
+          tempItem.delete();
+          await ctx.sync();
+        } catch (e) {
+          console.warn(`Export: fallback failed for part "${fb.part}"`, e);
+        }
+      }
+
+      indexedValues.sort((a, b) => a.idx - b.idx);
+      partValues = indexedValues.map(iv => iv.values);
 
       if (partValues.length === 0) {
         throw new Error("No data could be read from the named range.");
