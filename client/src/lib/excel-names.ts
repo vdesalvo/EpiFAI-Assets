@@ -763,12 +763,25 @@ export async function exportNameToSheet(params: { name: string; scope: string })
   });
 }
 
-function splitFormulaTopLevel(formula: string): string[] {
+export function splitFormulaTopLevel(formula: string): string[] {
   const parts: string[] = [];
   let depth = 0;
+  let inQuote = false;
   let current = "";
-  for (const ch of formula) {
-    if (ch === "(") {
+  for (let i = 0; i < formula.length; i++) {
+    const ch = formula[i];
+    if (inQuote) {
+      current += ch;
+      if (ch === "'" && i + 1 < formula.length && formula[i + 1] === "'") {
+        current += formula[i + 1];
+        i++;
+      } else if (ch === "'") {
+        inQuote = false;
+      }
+    } else if (ch === "'") {
+      inQuote = true;
+      current += ch;
+    } else if (ch === "(") {
       depth++;
       current += ch;
     } else if (ch === ")") {

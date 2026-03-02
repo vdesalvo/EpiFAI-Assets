@@ -1,10 +1,10 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { SelectionData, ExcelName, readRangeData } from "@/lib/excel-names";
+import { SelectionData, ExcelName, readRangeData, splitFormulaTopLevel } from "@/lib/excel-names";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { MousePointerClick, Loader2, ArrowLeft } from "lucide-react";
+import { MousePointerClick, Loader2, ArrowLeft, Plus, X, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -82,8 +82,38 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
   const [createAsTable, setCreateAsTable] = useState(false);
   const [hasHeaders, setHasHeaders] = useState(true);
 
+  const isEditMultiArea = isEditing && editTarget?.formula && !editTarget.fixedRef && !editTarget.dynamicRef && (() => {
+    const raw = editTarget.formula.replace(/^=/, "");
+    const hasDynFunc = /OFFSET\(|INDIRECT\(|INDEX\(/i.test(raw);
+    if (hasDynFunc) return false;
+    return splitFormulaTopLevel(raw).length > 1;
+  })();
+
+  const [multiArea, setMultiArea] = useState(!!isEditMultiArea);
+  const [areas, setAreas] = useState<{ address: string; rows: number; cols: number }[]>([]);
+
   useEffect(() => {
-    if (isEditing && editTarget?.origRange) {
+    if (isEditing && isEditMultiArea && editTarget?.formula) {
+      const raw = editTarget.formula.replace(/^=/, "");
+      const parts = splitFormulaTopLevel(raw);
+      const parsed = parts.map(p => {
+        const trimmed = p.trim();
+        const match = trimmed.match(/(?:(?:'[^']+'|[A-Za-z0-9_]+)!)?\$?([A-Za-z]+)\$?(\d+):\$?([A-Za-z]+)\$?(\d+)$/);
+        if (match) {
+          const c1 = colToNum(match[1].toUpperCase());
+          const r1 = parseInt(match[2], 10);
+          const c2 = colToNum(match[3].toUpperCase());
+          const r2 = parseInt(match[4], 10);
+          return { address: trimmed, rows: r2 - r1 + 1, cols: c2 - c1 + 1 };
+        }
+        return { address: trimmed, rows: 1, cols: 1 };
+      });
+      setAreas(parsed);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isEditing && editTarget?.origRange && !isEditMultiArea) {
       const loadEditRange = async () => {
         setLoading(true);
         try {
@@ -117,11 +147,20 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
     try {
       const data = await onPickSelection();
       if (data) {
-        setSelectionData(data);
-        setSkippedRows(new Set());
-        setSkippedCols(new Set());
-        setExpandCols(false);
-        setExpandRows(false);
+        if (multiArea) {
+          const dup = areas.some(a => a.address === data.address);
+          if (dup) {
+            toast({ description: "This range is already in the list." });
+          } else {
+            setAreas(prev => [...prev, { address: data.address, rows: data.rowCount, cols: data.colCount }]);
+          }
+        } else {
+          setSelectionData(data);
+          setSkippedRows(new Set());
+          setSkippedCols(new Set());
+          setExpandCols(false);
+          setExpandRows(false);
+        }
       }
     } catch (e: any) {
       console.error("Failed to get selection:", e);
@@ -133,6 +172,10 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
     } finally {
       setLoading(false);
     }
+  };
+
+  const removeArea = (index: number) => {
+    setAreas(prev => prev.filter((_, i) => i !== index));
   };
 
   const toggleRowSkip = useCallback((rowIdx: number) => {
@@ -334,6 +377,32 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
       setNameError(err);
       return;
     }
+    if (multiArea) {
+      if (areas.length < 2) {
+        setNameError("Add at least 2 areas for a multi-area range");
+        return;
+      }
+      setNameError("");
+      const formula = `=${areas.map(a => a.address).join(",")}`;
+      onSave({
+        name: isEditing ? editTarget!.name : name,
+        comment,
+        ...(isEditing && name !== editTarget!.name ? { newName: name } : {}),
+        refersTo: formula,
+        skipRows: 0,
+        skipCols: 0,
+        fixedRef: "",
+        dynamicRef: "",
+        lastColOnly: false,
+        lastRowOnly: false,
+        origRange: "",
+        expandRows: false,
+        expandCols: false,
+        skippedColIndices: [],
+        skippedRowIndices: [],
+      });
+      return;
+    }
     const result = buildResult();
     if (!result) {
       setNameError("Please select a range first");
@@ -401,7 +470,42 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
         )}
 
         <div className="space-y-2">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Excel Range</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Mode</Label>
+            <button
+              type="button"
+              onClick={() => {
+                setMultiArea(!multiArea);
+                if (!multiArea) {
+                  setSelectionData(null);
+                  setSkippedRows(new Set());
+                  setSkippedCols(new Set());
+                  setExpandCols(false);
+                  setExpandRows(false);
+                  setCreateAsTable(false);
+                } else {
+                  setAreas([]);
+                }
+                setNameError("");
+              }}
+              className={cn(
+                "flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md border transition-colors",
+                multiArea
+                  ? "bg-primary/10 text-primary border-primary/20"
+                  : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+              )}
+              data-testid="button-toggle-multi-area"
+            >
+              <Layers className="w-3 h-3" />
+              {multiArea ? "Multi-area ON" : "Multi-area OFF"}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+            {multiArea ? "Add Areas" : "Excel Range"}
+          </Label>
           <Button
             variant="outline"
             className="w-full justify-center gap-2"
@@ -411,19 +515,83 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
           >
             {loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
+            ) : multiArea ? (
+              <Plus className="w-4 h-4" />
             ) : (
               <MousePointerClick className="w-4 h-4" />
             )}
-            {selectionData ? "Re-pick Selection" : "Pick Current Selection"}
+            {multiArea
+              ? "Add Current Selection"
+              : selectionData ? "Re-pick Selection" : "Pick Current Selection"}
           </Button>
-          {selectionData && (
+          {!multiArea && selectionData && (
             <p className="text-[10px] text-muted-foreground font-mono text-center">
               {selectionData.address} ({selectionData.rowCount} rows × {selectionData.colCount} cols)
             </p>
           )}
         </div>
 
-        {selectionData && (
+        {multiArea && (
+          <div className="space-y-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+              Areas ({areas.length})
+            </Label>
+            {areas.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground text-center py-3 border rounded-md bg-muted/20">
+                No areas added yet. Select a range in Excel and click "Add Current Selection".
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {areas.map((area, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between bg-muted/30 border rounded-md px-2.5 py-2 group"
+                    data-testid={`multi-area-item-${idx}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-mono text-foreground truncate">{area.address}</p>
+                      <p className="text-[9px] text-muted-foreground">{area.rows} row{area.rows !== 1 ? "s" : ""} × {area.cols} col{area.cols !== 1 ? "s" : ""}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeArea(idx)}
+                      className="shrink-0 ml-2 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                      title="Remove this area"
+                      data-testid={`button-remove-area-${idx}`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {areas.length >= 2 && (
+              <div className="bg-muted/50 border rounded-md p-2.5 space-y-1">
+                <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Formula Preview</p>
+                <p className="text-[11px] font-mono text-foreground break-all" data-testid="text-multi-area-formula">
+                  ={areas.map(a => a.address).join(",")}
+                </p>
+                <p className="text-[10px] text-muted-foreground">{areas.length} areas combined</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {multiArea && (
+          <div className="space-y-2">
+            <Label htmlFor="vp-comment-multi" className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Description</Label>
+            <Input
+              id="vp-comment-multi"
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder="What is this range used for?"
+              className="text-sm"
+              data-testid="input-vp-comment-multi"
+            />
+          </div>
+        )}
+
+        {!multiArea && selectionData && (
           <>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -634,10 +802,10 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
         <Button
           className="flex-1 bg-primary"
           onClick={handleSave}
-          disabled={!selectionData}
+          disabled={multiArea ? areas.length < 2 : !selectionData}
           data-testid="button-vp-save"
         >
-          {isEditing ? "Update Range" : createAsTable ? "Create Table" : "Create Range"}
+          {isEditing ? "Update Range" : multiArea ? "Create Multi-area Range" : createAsTable ? "Create Table" : "Create Range"}
         </Button>
         <Button variant="outline" className="flex-1" onClick={onCancel} data-testid="button-vp-cancel">
           Cancel

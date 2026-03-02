@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExcelName, selectNameRange } from "@/lib/excel-names";
+import { ExcelName, selectNameRange, splitFormulaTopLevel } from "@/lib/excel-names";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   Maximize,
   Columns,
+  Layers,
   Loader2,
   FileSpreadsheet
 } from "lucide-react";
@@ -69,10 +70,14 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onClaim, o
     }
   };
 
-  const getRangeType = (n: ExcelName): "fixed" | "dynamic" | "hybrid" => {
+  const getRangeType = (n: ExcelName): "fixed" | "dynamic" | "hybrid" | "multi-area" => {
     const u = n.formula.toUpperCase();
     const hasOffset = u.includes("OFFSET(") || u.includes("INDIRECT(") || u.includes("INDEX(");
-    if (!hasOffset) return "fixed";
+    if (!hasOffset) {
+      const raw = n.formula.replace(/^=/, "");
+      if (!n.fixedRef && !n.dynamicRef && splitFormulaTopLevel(raw).length > 1) return "multi-area";
+      return "fixed";
+    }
     if (n.fixedRef && n.dynamicRef) return "hybrid";
     return "dynamic";
   };
@@ -128,7 +133,7 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onClaim, o
           {filteredNames.map((n) => {
             const isSelected = selectedId === n.name;
             const rangeType = getRangeType(n);
-            const dynamic = rangeType !== "fixed";
+            const dynamic = rangeType === "dynamic" || rangeType === "hybrid";
             
             return (
               <div
@@ -178,7 +183,9 @@ export function NameList({ names, onEdit, onDelete, onGoTo, onCreate, onClaim, o
                         variant={rangeType === "fixed" ? "secondary" : "info"} 
                         className="text-[10px] h-5 px-1.5"
                       >
-                        {rangeType === "hybrid" ? (
+                        {rangeType === "multi-area" ? (
+                          <><Layers className="w-2.5 h-2.5 mr-1"/> Multi-area</>
+                        ) : rangeType === "hybrid" ? (
                           <><Columns className="w-2.5 h-2.5 mr-1"/> Hybrid</>
                         ) : rangeType === "dynamic" ? (
                           <><Maximize className="w-2.5 h-2.5 mr-1"/> Dynamic</>
