@@ -30,7 +30,7 @@ Preferred communication style: Simple, everyday language.
 - `client/src/hooks/use-excel.ts` — React Query hooks wrapping the Excel service functions
 - `client/src/components/NameList.tsx` — Main list view for named ranges with search/filter
 - `client/src/components/NameEditor.tsx` — Form for creating/editing named ranges with range picker
-- `client/src/components/RangePicker.tsx` — Visual range picker: renders Excel selection as grid, supports row/col dimming (skip), fixed/dynamic column split, dynamic columns toggle, dynamic rows toggle, "Create as Table" toggle for Excel Table creation, and multi-area mode for combining non-adjacent selections into a single named range
+- `client/src/components/RangePicker.tsx` — Visual range picker: renders Excel selection as grid, supports row/col dimming (skip), fixed/dynamic column split, dynamic columns toggle, dynamic rows toggle, "Create as Table" toggle for Excel Table creation, and multi-area mode for combining non-adjacent selections into a single named range. Multi-area addresses are stored as `[multiareas:addr1|addr2|...]` metadata in the named range comment for reliable export
 - `client/src/pages/Home.tsx` — Main page with tabbed interface (Names tab + Assets tab showing tables/charts/images), three views: list, edit, visual-picker
 
 ### Office.js Integration

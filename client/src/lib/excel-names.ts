@@ -11,6 +11,7 @@ const EXPANDROWS_TAG = "[expandrows]";
 const EXPANDCOLS_TAG = "[expandcols]";
 const SKIPCIDX_TAG_RE = /\[skipcidx:([^\]]+)\]/;
 const SKIPRIDX_TAG_RE = /\[skipridx:([^\]]+)\]/;
+const MULTIAREAS_TAG_RE = /\[multiareas:([^\]]+)\]/;
 
 export function parseSkipTag(comment: string): { skipRows: number; skipCols: number } {
   const m = comment.match(SKIP_TAG_RE);
@@ -90,6 +91,15 @@ export function buildSkipRowIndicesTag(indices: number[]): string {
   if (!indices.length) return "";
   return `[skipridx:${indices.join(",")}]`;
 }
+export function parseMultiAreasTag(comment: string): string[] {
+  const m = comment.match(MULTIAREAS_TAG_RE);
+  if (!m) return [];
+  return m[1].split("|").filter(Boolean);
+}
+export function buildMultiAreasTag(areas: string[]): string {
+  if (!areas.length) return "";
+  return `[multiareas:${areas.join("|")}]`;
+}
 
 export function stripMetaTags(comment: string): string {
   return comment
@@ -104,6 +114,7 @@ export function stripMetaTags(comment: string): string {
     .replace(EXPANDCOLS_TAG, "")
     .replace(SKIPCIDX_TAG_RE, "")
     .replace(SKIPRIDX_TAG_RE, "")
+    .replace(MULTIAREAS_TAG_RE, "")
     .trim();
 }
 
@@ -130,6 +141,7 @@ export interface ExcelName {
   expandCols: boolean;
   skippedColIndices: number[];
   skippedRowIndices: number[];
+  multiAreas: string[];
 }
 
 export interface UpdateNameParams {
@@ -147,6 +159,7 @@ export interface UpdateNameParams {
   expandCols?: boolean;
   skippedColIndices?: number[];
   skippedRowIndices?: number[];
+  multiAreas?: string[];
 }
 
 export interface SelectionData {
@@ -185,10 +198,11 @@ function buildExcelName(item: any, scope: string, address: string, values?: any[
   const isEpifai = rawComment.includes(EPIFAI_TAG);
   const skip = parseSkipTag(rawComment);
 
+  const hasMultiAreas = parseMultiAreasTag(rawComment).length > 1;
   let status: ExcelName["status"] = "valid";
-  if (!address && !isDynamicFormula(item.formula || "") && !isUnionFormula(item.formula || "")) {
+  if (!address && !isDynamicFormula(item.formula || "") && !isUnionFormula(item.formula || "") && !hasMultiAreas) {
     status = "broken";
-  } else if (isBrokenValue(item.value)) {
+  } else if (isBrokenValue(item.value) && !hasMultiAreas) {
     status = "broken";
   }
 
@@ -215,6 +229,7 @@ function buildExcelName(item: any, scope: string, address: string, values?: any[
     expandCols: parseExpandColsTag(rawComment),
     skippedColIndices: parseSkipColIndicesTag(rawComment),
     skippedRowIndices: parseSkipRowIndicesTag(rawComment),
+    multiAreas: parseMultiAreasTag(rawComment),
   };
 }
 
@@ -355,7 +370,7 @@ export async function claimAsEpifai(name: string, scope: string): Promise<void> 
   });
 }
 
-export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedRef = "", dynamicRef = "", lastColOnly = false, lastRowOnly = false, origRange = "", expandRows = false, expandCols = false, skippedColIndices: number[] = [], skippedRowIndices: number[] = []): Promise<void> {
+export async function addName(name: string, formula: string, comment = "", scope = "Workbook", skipRows = 0, skipCols = 0, fixedRef = "", dynamicRef = "", lastColOnly = false, lastRowOnly = false, origRange = "", expandRows = false, expandCols = false, skippedColIndices: number[] = [], skippedRowIndices: number[] = [], multiAreas: string[] = []): Promise<void> {
   return Excel.run(async (ctx) => {
     const raw = formula.replace(/^=/, "");
     const hasFunction = /[A-Z]+\(/.test(raw.toUpperCase());
@@ -397,7 +412,8 @@ export async function addName(name: string, formula: string, comment = "", scope
     const expandColsTag = buildExpandColsTag(expandCols);
     const skipCIdxTag = buildSkipColIndicesTag(skippedColIndices);
     const skipRIdxTag = buildSkipRowIndicesTag(skippedRowIndices);
-    const parts = [EPIFAI_TAG, comment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag].filter(Boolean);
+    const multiAreasTag = buildMultiAreasTag(multiAreas);
+    const parts = [EPIFAI_TAG, comment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag, multiAreasTag].filter(Boolean);
     item.comment = parts.join(" ");
     await ctx.sync();
   });
@@ -436,7 +452,9 @@ export async function updateName(name: string, updates: UpdateNameParams): Promi
     const expandColsTag = buildExpandColsTag(expC);
     const skipCIdxTag = buildSkipColIndicesTag(scIdx);
     const skipRIdxTag = buildSkipRowIndicesTag(srIdx);
-    const parts = [hadEpifaiTag ? EPIFAI_TAG : "", userComment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag].filter(Boolean);
+    const mAreas = updates.multiAreas !== undefined ? updates.multiAreas : parseMultiAreasTag(oldRaw);
+    const multiAreasTag = buildMultiAreasTag(mAreas);
+    const parts = [hadEpifaiTag ? EPIFAI_TAG : "", userComment, skipTag, fixRefTag, dynRefTag, lastColTag, lastRowTag, origRangeTag, expandRowsTag, expandColsTag, skipCIdxTag, skipRIdxTag, multiAreasTag].filter(Boolean);
     item.comment = parts.join(" ");
     
     if (updates.newName && updates.newName !== item.name) {
@@ -637,64 +655,60 @@ export async function exportNameToSheet(params: { name: string; scope: string })
       namedItem = ctx.workbook.names.getItem(params.name);
     }
 
-    namedItem.load("formula");
+    namedItem.load("formula,comment");
     await ctx.sync();
 
     const formula = namedItem.formula;
     const rawFormula = formula.replace(/^=/, "");
+    const comment = namedItem.comment || "";
 
-    const formulaParts = splitFormulaTopLevel(rawFormula);
+    const storedAreas = parseMultiAreasTag(comment);
+    const formulaParts = storedAreas.length > 1 ? storedAreas : splitFormulaTopLevel(rawFormula);
     const partValues: any[][][] = [];
     const tempNames: string[] = [];
 
     try {
       for (let i = 0; i < formulaParts.length; i++) {
         const part = formulaParts[i].trim();
+        if (!part) continue;
+
+        let resolved = false;
+
+        const sheetMatch = part.match(/^(?:'([^']+)'|([A-Za-z0-9_]+))!/);
         const hasDynFunc = /OFFSET\(|INDIRECT\(|INDEX\(/i.test(part);
 
-        if (!hasDynFunc) {
-          const sheetMatch = part.match(/^(?:'([^']+)'|([A-Za-z0-9_]+))!/);
-          if (sheetMatch) {
+        if (!hasDynFunc && sheetMatch) {
+          try {
             const sheetName = sheetMatch[1] || sheetMatch[2];
             const ref = part.substring(sheetMatch[0].length);
             const partRange = ctx.workbook.worksheets.getItem(sheetName).getRange(ref);
             partRange.load("values");
             await ctx.sync();
             partValues.push(partRange.values);
-          } else {
-            try {
-              const tempName = `_epifai_tmp_${Date.now()}_s${i}`;
-              tempNames.push(tempName);
-              ctx.workbook.names.add(tempName, `=${part}`);
-              await ctx.sync();
-              const tempItem = ctx.workbook.names.getItem(tempName);
-              const resolved = tempItem.getRangeOrNullObject();
-              resolved.load("isNullObject,values");
-              await ctx.sync();
-              if (!resolved.isNullObject) {
-                partValues.push(resolved.values);
-              }
-              tempItem.delete();
-              await ctx.sync();
-            } catch (_) {}
+            resolved = true;
+          } catch (e) {
+            console.warn(`Export: direct getRange failed for part "${part}", trying temp name approach`, e);
           }
-        } else {
-          const tempName = `_epifai_tmp_${Date.now()}_${i}`;
-          tempNames.push(tempName);
-          ctx.workbook.names.add(tempName, `=${part}`);
-          await ctx.sync();
+        }
 
-          const tempItem = ctx.workbook.names.getItem(tempName);
-          const resolved = tempItem.getRangeOrNullObject();
-          resolved.load("isNullObject,values");
-          await ctx.sync();
-
-          if (!resolved.isNullObject) {
-            partValues.push(resolved.values);
+        if (!resolved) {
+          try {
+            const tempName = `_epifai_tmp_${Date.now()}_${i}`;
+            tempNames.push(tempName);
+            ctx.workbook.names.add(tempName, `=${part}`);
+            await ctx.sync();
+            const tempItem = ctx.workbook.names.getItem(tempName);
+            const tempRange = tempItem.getRangeOrNullObject();
+            tempRange.load("isNullObject,values");
+            await ctx.sync();
+            if (!tempRange.isNullObject) {
+              partValues.push(tempRange.values);
+            }
+            tempItem.delete();
+            await ctx.sync();
+          } catch (e) {
+            console.warn(`Export: temp name approach also failed for part "${part}"`, e);
           }
-
-          tempItem.delete();
-          await ctx.sync();
         }
       }
 

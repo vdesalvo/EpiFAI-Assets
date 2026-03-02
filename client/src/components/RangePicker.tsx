@@ -82,7 +82,9 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
   const [createAsTable, setCreateAsTable] = useState(false);
   const [hasHeaders, setHasHeaders] = useState(true);
 
-  const isEditMultiArea = isEditing && editTarget?.formula && !editTarget.fixedRef && !editTarget.dynamicRef && (() => {
+  const isEditMultiArea = isEditing && editTarget && (() => {
+    if (editTarget.multiAreas && editTarget.multiAreas.length > 1) return true;
+    if (!editTarget.formula || editTarget.fixedRef || editTarget.dynamicRef) return false;
     const raw = editTarget.formula.replace(/^=/, "");
     const hasDynFunc = /OFFSET\(|INDIRECT\(|INDEX\(/i.test(raw);
     if (hasDynFunc) return false;
@@ -93,9 +95,11 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
   const [areas, setAreas] = useState<{ address: string; rows: number; cols: number }[]>([]);
 
   useEffect(() => {
-    if (isEditing && isEditMultiArea && editTarget?.formula) {
-      const raw = editTarget.formula.replace(/^=/, "");
-      const parts = splitFormulaTopLevel(raw);
+    if (isEditing && isEditMultiArea && editTarget) {
+      const storedAreas = editTarget.multiAreas || [];
+      const parts = storedAreas.length > 1
+        ? storedAreas
+        : splitFormulaTopLevel((editTarget.formula || "").replace(/^=/, ""));
       const parsed = parts.map(p => {
         const trimmed = p.trim();
         const match = trimmed.match(/(?:(?:'[^']+'|[A-Za-z0-9_]+)!)?\$?([A-Za-z]+)\$?(\d+):\$?([A-Za-z]+)\$?(\d+)$/);
@@ -389,7 +393,8 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
         return;
       }
       setNameError("");
-      const formula = `=${areas.map(a => a.address).join(",")}`;
+      const areaAddrs = areas.map(a => a.address);
+      const formula = `=${areaAddrs.join(",")}`;
       onSave({
         name: isEditing ? editTarget!.name : name,
         comment,
@@ -406,6 +411,7 @@ export function RangePicker({ onSave, onCancel, onPickSelection, isPicking, edit
         expandCols: false,
         skippedColIndices: [],
         skippedRowIndices: [],
+        multiAreas: areaAddrs,
       });
       return;
     }
